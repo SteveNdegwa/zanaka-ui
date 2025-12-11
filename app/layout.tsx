@@ -4,6 +4,7 @@ import { GeistSans } from "geist/font/sans"
 import { GeistMono } from "geist/font/mono"
 import { ThemeProvider } from "@/components/theme-provider"
 import { SidebarProvider } from "@/components/sidebar-provider"
+import { ToasterProvider } from "@/components/toast-provider"
 import "./globals.css"
 
 export const metadata: Metadata = {
@@ -12,11 +13,7 @@ export const metadata: Metadata = {
   generator: "v0.app",
 }
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode
-}>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -30,7 +27,10 @@ html {
       </head>
       <body>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <SidebarProvider>{children}</SidebarProvider>
+          <SidebarProvider>
+            {children}
+            <ToasterProvider />
+          </SidebarProvider>
         </ThemeProvider>
       </body>
     </html>

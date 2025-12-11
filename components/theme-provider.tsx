@@ -28,16 +28,24 @@ export function ThemeProvider({
   storageKey = "vite-ui-theme",
   ...props
 }: ThemeProviderProps) {
-  const [theme, setTheme] = React.useState<Theme>(() => (localStorage?.getItem(storageKey) as Theme) || defaultTheme)
+  // ✅ Start with defaultTheme (safe for SSR)
+  const [theme, setTheme] = React.useState<Theme>(defaultTheme)
 
+  // ✅ Load from localStorage on client after mount
+  React.useEffect(() => {
+    const storedTheme = localStorage.getItem(storageKey) as Theme | null
+    if (storedTheme) {
+      setTheme(storedTheme)
+    }
+  }, [storageKey])
+
+  // ✅ Apply theme classes when theme changes
   React.useEffect(() => {
     const root = window.document.documentElement
-
     root.classList.remove("light", "dark")
 
     if (theme === "system") {
       const systemTheme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
-
       root.classList.add(systemTheme)
       return
     }
@@ -48,7 +56,7 @@ export function ThemeProvider({
   const value = {
     theme,
     setTheme: (theme: Theme) => {
-      localStorage?.setItem(storageKey, theme)
+      localStorage.setItem(storageKey, theme)
       setTheme(theme)
     },
   }
@@ -62,8 +70,6 @@ export function ThemeProvider({
 
 export const useTheme = () => {
   const context = React.useContext(ThemeProviderContext)
-
   if (context === undefined) throw new Error("useTheme must be used within a ThemeProvider")
-
   return context
 }
