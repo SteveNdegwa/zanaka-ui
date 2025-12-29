@@ -28,7 +28,7 @@ export default function LoginPage() {
     setIsLoading(true)
 
     try {
-      let payload = {credential: identifier, password: password}
+      const payload = {credential: identifier, password: password}
       const res = await authRequests.login(payload)
       if (res.success && res.data) {
         if (res.data.identity_status === "ACTIVE") {

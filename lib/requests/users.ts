@@ -1,4 +1,5 @@
 import { apiClient, type APIResponse } from "./client";
+import { Invoice, Payment } from "./finances";
 
 export interface UserProfile {
   id: string;
@@ -6,13 +7,18 @@ export interface UserProfile {
   first_name: string;
   last_name: string;
   other_name: string;
+  full_name: string;
   gender: string;
   reg_number: string;
   date_of_birth: string;
+  town_of_residence: string;
+  county_of_residence: string;
+  address: string;
   role_id: string;
   role_name: string;
-  branch_id: string;
-  branch_name: string;
+  school_id: string;
+  school_name: string;
+  branches: Record<string, string>[];
   is_active: boolean;
   is_superuser: boolean;
   force_pass_reset: boolean;
@@ -20,6 +26,8 @@ export interface UserProfile {
   created_at: string;
   updated_at: string;
   user_id: string;
+  status: string;
+  photo: string | null;
   
   // Guardians, Teachers, Admins and clerks
   id_number?: string;
@@ -27,12 +35,21 @@ export interface UserProfile {
   email?: string;
 
   // Students
+  guardians?:  Record<string, string>[];
   knec_number?: string;
   nemis_number?: string;
   classroom_id?: string;
   classroom_name?: string;
+  grade_level?: string;
+  academic_year?: string;
   medical_info?: string;
   additional_info?: string;
+  student_type?: string;
+  subscribed_to_transport?: boolean;
+  subscribed_to_meals?: boolean;
+  admission_date?: string;
+  invoices?: Invoice[];
+  payments?: Payment[];
 
   // Guardians
   occupation?: string;
@@ -44,12 +61,20 @@ export interface UserProfile {
 export interface CreateUserRequest {
   first_name: string;
   last_name: string;
-  date_of_birth: string;
-  gender: string;
+  other_name: string;
+  date_of_birth?: string;
+  gender?: string;
   reg_number?: string;
+  student_type?: string;
+  status?: string;
   knec_number?: string;
+  town_of_residence?: string;
+  county_of_residence?: string;
+  address?: string;
+  academic_year?: string;
+  admission_date?: string;
   nemis_number?: string;
-  classroom_id?: string;
+  classroom_id?: string | null;
   medical_info?: string;
   additional_info?: string;
   id_number?: string;
@@ -57,6 +82,11 @@ export interface CreateUserRequest {
   email?: string;
   occupation?: string;
   tsc_number?: string;
+  branch_ids?: string[];
+  subscribed_to_meals?: boolean;
+  subscribed_to_transport?: boolean;
+  guardians?: Record<string, any>[];
+  photo?: string;
 }
 
 export interface CreateUserResponse {
@@ -66,12 +96,22 @@ export interface CreateUserResponse {
 export interface UpdateUserRequest {
   first_name: string;
   last_name: string;
-  date_of_birth: string;
-  gender: string;
+  other_name: string;
+  date_of_birth?: string;
+  gender?: string;
   reg_number?: string;
+  student_type?: string;
+  status?: string;
   knec_number?: string;
+  town_of_residence?: string;
+  county_of_residence?: string;
+  address?: string;
+  academic_year?: string;
+  admission_date?: string;
   nemis_number?: string;
-  classroom_id?: string;
+  classroom_id?: string | null;
+  classroom_movement_type?: string;
+  classroom_movement_reason?: string;
   medical_info?: string;
   additional_info?: string;
   id_number?: string;
@@ -79,7 +119,11 @@ export interface UpdateUserRequest {
   email?: string;
   occupation?: string;
   tsc_number?: string;
-  branch_id?: string;
+  branch_ids?: string[];
+  subscribed_to_meals?: boolean;
+  subscribed_to_transport?: boolean;
+  guardians?: Record<string, any>[];
+  photo?: string;
 }
 
 export interface FilterUsersRequest {
@@ -144,10 +188,10 @@ export const usersRequests = {
   },
 
   getUser: async (userId: string): Promise<APIResponse<UserProfile>> => {
-    return apiClient.post<UserProfile>(`/users/${userId}/`)
+    return apiClient.post<UserProfile>(`/users/view/${userId}/`)
   },
 
-  filterUsers: async (userId: string, data: FilterUsersRequest): Promise<APIResponse<UserProfile[]>> => {
+  filterUsers: async (data: FilterUsersRequest): Promise<APIResponse<UserProfile[]>> => {
     return apiClient.post<UserProfile[]>(`/users/filter/`, data)
   },
 

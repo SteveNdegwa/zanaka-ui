@@ -21,8 +21,8 @@ import {
   X,
   Building,
   Receipt,
-  ChevronDown,
-  ChevronRight,
+  CreditCard,
+  Files,
 } from "lucide-react"
 
 const navigation = [
@@ -31,17 +31,10 @@ const navigation = [
   { name: "Teachers", href: "/teachers", icon: GraduationCap },
   { name: "Classes", href: "/classes", icon: BookOpen },
   { name: "Branches", href: "/branches", icon: Building },
-  { name: "Schedule", href: "/schedule", icon: Calendar },
-  {
-    name: "Finance",
-    href: "/finance",
-    icon: DollarSign,
-    submenu: [
-      { name: "Overview", href: "/finance", icon: DollarSign },
-      { name: "Expenses", href: "/finance", icon: Receipt },
-      { name: "Invoices", href: "/finance/invoices", icon: FileText },
-    ],
-  },
+  { name: "Invoices", href: "/finance/invoices", icon: FileText },
+  { name: "Bulk Invoices", href: "/finance/bulk-invoices/", icon: Files },
+  { name: "Payments", href: "/finance/payments", icon: CreditCard },
+  { name: "Expenses", href: "/finance/expenses", icon: Receipt },
   { name: "Reports", href: "/reports", icon: FileText },
   { name: "Notifications", href: "/notifications", icon: Bell },
   { name: "Settings", href: "/settings", icon: Settings },
@@ -50,7 +43,6 @@ const navigation = [
 export function Sidebar() {
   const { isCollapsed, setIsCollapsed } = useSidebar()
   const [isMobileOpen, setIsMobileOpen] = useState(false)
-  const [expandedFinance, setExpandedFinance] = useState(false)
   const pathname = usePathname()
 
   return (
@@ -99,56 +91,11 @@ export function Sidebar() {
           <ScrollArea className="flex-1 px-3 py-4">
             <nav className="space-y-2">
               {navigation.map((item) => {
+                // Dashboard is active on "/" or when no other route matches
                 const isActive =
-                  pathname === item.href || (item.submenu && item.submenu.some((sub) => pathname === sub.href))
-
-                if (item.submenu && item.name === "Finance") {
-                  return (
-                    <div key={item.name}>
-                      <button
-                        onClick={() => !isCollapsed && setExpandedFinance(!expandedFinance)}
-                        className={cn(
-                          "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground w-full",
-                          isActive ? "bg-accent text-accent-foreground" : "text-muted-foreground",
-                          isCollapsed && "justify-center px-2",
-                        )}
-                      >
-                        <item.icon className="h-5 w-5 flex-shrink-0" />
-                        {!isCollapsed && (
-                          <>
-                            <span className="flex-1 text-left">{item.name}</span>
-                            {expandedFinance ? (
-                              <ChevronDown className="h-4 w-4" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4" />
-                            )}
-                          </>
-                        )}
-                      </button>
-                      {!isCollapsed && expandedFinance && (
-                        <div className="ml-6 mt-2 space-y-1">
-                          {item.submenu.map((subItem) => {
-                            const isSubActive = pathname === subItem.href
-                            return (
-                              <Link
-                                key={subItem.name}
-                                href={subItem.href}
-                                className={cn(
-                                  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground",
-                                  isSubActive ? "bg-accent text-accent-foreground" : "text-muted-foreground",
-                                )}
-                                onClick={() => setIsMobileOpen(false)}
-                              >
-                                <subItem.icon className="h-4 w-4 flex-shrink-0" />
-                                <span>{subItem.name}</span>
-                              </Link>
-                            )
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  )
-                }
+                  item.href === "/"
+                    ? pathname === "/" || !navigation.some(nav => nav.href !== "/" && pathname.startsWith(nav.href))
+                    : pathname.startsWith(item.href)
 
                 return (
                   <Link

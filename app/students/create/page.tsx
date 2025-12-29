@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Sidebar } from "@/components/sidebar"
 import { DashboardHeader } from "@/components/dashboard-header"
@@ -12,54 +12,363 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, Upload, User, Phone, GraduationCap, Users, FileText, Save, X } from "lucide-react"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Checkbox } from "@/components/ui/checkbox"
+import { ArrowLeft, Upload, User, Phone, GraduationCap, Users, FileText, Save, X, Plus, Search } from "lucide-react"
 import Link from "next/link"
-
-// Mock data for dropdowns
-const branches = [
-  { id: "main", name: "Main Campus", code: "MAIN" },
-  { id: "north", name: "North Campus", code: "NORTH" },
-  { id: "south", name: "South Campus", code: "SOUTH" },
-  { id: "tech", name: "Tech Campus", code: "TECH" },
-]
-
-const classes = [
-  { id: "math-101", name: "Mathematics 101", grade: "9", teacher: "Ms. Johnson" },
-  { id: "eng-102", name: "English Literature", grade: "10", teacher: "Mr. Smith" },
-  { id: "sci-201", name: "Physics Advanced", grade: "11", teacher: "Dr. Wilson" },
-  { id: "hist-301", name: "World History", grade: "12", teacher: "Ms. Davis" },
-]
+import { BranchProfile, ClassroomProfile, schoolRequests } from "@/lib/requests/schools"
+import { useToast } from "@/src/use-toast"
+import { CreateUserRequest, usersRequests } from "@/lib/requests/users"
 
 const guardianRelationships = ["Father", "Mother", "Guardian", "Grandfather", "Grandmother", "Uncle", "Aunt", "Other"]
 
+const counties = [
+  "Baringo", "Bomet", "Bungoma", "Busia", "Elgeyo-Marakwet", "Embu",
+  "Garissa", "Homa Bay", "Isiolo", "Kajiado", "Kericho", "Kiambu",
+  "Kilifi", "Kirinyaga", "Kisii", "Kisumu", "Kitui", "Kwale",
+  "Laikipia", "Lamu", "Machakos", "Makueni", "Mandera", "Marsabit",
+  "Meru", "Migori", "Mombasa", "Murang'a", "Nairobi", "Nakuru",
+  "Nandi", "Narok", "Nyamira", "Nyandarua", "Nyeri", "Samburu",
+  "Siaya", "Taita-Taveta", "Tana River", "Tharaka-Nithi", "Trans-Nzoia",
+  "Turkana", "Uasin Gishu", "Vihiga", "Wajir", "West Pokot"
+].sort()
+
+interface Guardian {
+  id: string
+  name: string
+  idNumber: string
+  phone: string
+  email: string
+}
+
+interface SelectedGuardian {
+  guardianId: string
+  guardianName: string
+  relationship: string
+  receiveReports: boolean
+  primaryGuardian: boolean
+}
+
+interface NewGuardian {
+  firstName: string
+  lastName: string
+  surname: string
+  idNumber: string
+  phone: string
+  email: string
+  occupation: string
+}
+
 export default function CreateStudentPage() {
   const router = useRouter()
-  const [selectedClasses, setSelectedClasses] = useState<string[]>([])
-  const [guardians, setGuardians] = useState([
-    { name: "", relationship: "", phone: "", email: "", address: "", occupation: "" },
-  ])
+  const { toast } = useToast()
+  const [loading, setLoading] = useState(true)
+  const [isButtonLoading, setIsButtonLoading] = useState(false)
 
-  const addGuardian = () => {
-    setGuardians([...guardians, { name: "", relationship: "", phone: "", email: "", address: "", occupation: "" }])
+  // Form fields
+  const [firstName, setFirstName] = useState<string>("")
+  const [lastName, setLastName] = useState<string>("")
+  const [surname, setSurname] = useState<string>("")
+  const [dob, setDob] = useState<string>("")
+  const [gender, setGender] = useState<string>("")
+  const [town, setTown] = useState<string>("")
+  const [county, setCounty] = useState<string>("")
+  const [address, setAddress] = useState<string>("")
+  const [academicYear, setAcademicYear] = useState<string>("")
+  const [admissionDate, setAdmissionDate] = useState<string>("")
+  const [medicalInformation, setMedicalInformation] = useState<string>("")
+  const [additionalInformation, setAdditionalInformation] = useState<string>("")
+  const [enrollmentStatus, setEnrollmentStatus] = useState<string>("active")
+  const [subscribedMeals, setSubscribedMeals] = useState(true)
+  const [subscribedTransport, setSubscribedTransport] = useState(true)
+  const [studentType, setStudentType] = useState<"day_scholar" | "boarder">("day_scholar")
+
+  // Academic selections
+  const [branches, setBranches] = useState<BranchProfile[]>([])
+  const [selectedBranch, setSelectedBranch] = useState<string>("")
+  const [selectedGrade, setSelectedGrade] = useState<string>("")
+  const [selectedClassroom, setSelectedClassroom] = useState<string>("")
+  const [availableClassrooms, setAvailableClassrooms] = useState<ClassroomProfile[]>([])
+
+  // Guardians
+  const [existingGuardians, setExistingGuardians] = useState<Guardian[]>([])
+  const [selectedGuardians, setSelectedGuardians] = useState<SelectedGuardian[]>([])
+
+  // Guardian dialog
+  const [isAddGuardianDialogOpen, setIsAddGuardianDialogOpen] = useState(false)
+  const [guardianSearchQuery, setGuardianSearchQuery] = useState("")
+  const [selectedGuardianId, setSelectedGuardianId] = useState("")
+  const [selectedRelationship, setSelectedRelationship] = useState("")
+  const [primaryGuardian, setPrimaryGuardian] = useState<boolean>(false)
+  const [receiveReports, setReceiveReports] = useState<boolean>(false)
+  const [isCreatingNewGuardian, setIsCreatingNewGuardian] = useState(false)
+
+  // New guardian form
+  const [newGuardian, setNewGuardian] = useState<NewGuardian>({
+    firstName: "",
+    lastName: "",
+    surname: "",
+    idNumber: "",
+    phone: "",
+    email: "",
+    occupation: "",
+  })
+
+  // Profile photo
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const [profilePhoto, setProfilePhoto] = useState<File | null>(null)
+  const [profilePreview, setProfilePreview] = useState<string | null>(null)
+
+  const currentYear = new Date().getFullYear()
+  const academicYears = [`${currentYear}`, `${currentYear + 1}`]
+
+  // Validation logic
+  const isActiveStudent = enrollmentStatus === "active"
+
+  const errors = {
+    firstName: !firstName.trim(),
+    lastName: !lastName.trim(),
+    surname: !surname.trim(),
+    dob: !dob,
+    gender: !gender,
+    town: !town.trim(),
+    county: !county,
+    address: !address.trim(),
+    guardians: selectedGuardians.length === 0,
+    studentType: !studentType,
+    admissionDate: !admissionDate,
+    branch: isActiveStudent && !selectedBranch,
+    grade: isActiveStudent && !selectedGrade,
+    classroom: isActiveStudent && !selectedClassroom,
+    academicYear: isActiveStudent && !academicYear
   }
 
-  const removeGuardian = (index: number) => {
-    if (guardians.length > 1) {
-      setGuardians(guardians.filter((_, i) => i !== index))
+  const hasErrors = Object.values(errors).some(Boolean)
+
+  // Fetch branches
+  useEffect(() => {
+    const fetchBranches = async () => {
+      const response = await schoolRequests.listBranches()
+      if (response.success && response.data) {
+        setBranches(response.data)
+        setLoading(false)
+      }
     }
+    fetchBranches()
+  }, [])
+
+  // Load classrooms
+  useEffect(() => {
+    if (selectedBranch && selectedGrade && isActiveStudent) {
+      const loadClassrooms = async () => {
+        const response = await schoolRequests.listClassrooms({
+          branch_id: selectedBranch,
+          grade_level: selectedGrade,
+        })
+        if (response.success && response.data) {
+          setAvailableClassrooms(response.data)
+          if (response.data.length === 0) {
+            setSelectedClassroom("")
+          }
+        } else {
+          setAvailableClassrooms([])
+          setSelectedClassroom("")
+        }
+      }
+      loadClassrooms()
+    } else {
+      setAvailableClassrooms([])
+      setSelectedClassroom("")
+    }
+  }, [selectedBranch, selectedGrade, isActiveStudent])
+
+  // Load existing guardians
+  useEffect(() => {
+    const loadGuardians = async () => {
+      const payload = { role_name: "GUARDIAN" }
+      const response = await usersRequests.filterUsers(payload)
+      if (response.success && response.data) {
+        const guardiansList = response.data.map((guardian: any) => ({
+          id: guardian.id,
+          name: `${guardian.first_name} ${guardian.last_name} ${guardian.other_name || ""}`.trim(),
+          idNumber: guardian.id_number || "",
+          phone: guardian.phone_number || "",
+          email: guardian.email || "",
+        }))
+        setExistingGuardians(guardiansList)
+      }
+    }
+    loadGuardians()
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-lg">Loading...</p>
+      </div>
+    )
   }
 
-  const updateGuardian = (index: number, field: string, value: string) => {
-    const updated = guardians.map((guardian, i) => (i === index ? { ...guardian, [field]: value } : guardian))
-    setGuardians(updated)
+  // Filtered guardians for search
+  const filteredGuardians = existingGuardians.filter(
+    (guardian) =>
+      guardian.name.toLowerCase().includes(guardianSearchQuery.toLowerCase()) ||
+      guardian.id.toLowerCase().includes(guardianSearchQuery.toLowerCase()) ||
+      guardian.phone.includes(guardianSearchQuery)
+  )
+
+  const addExistingGuardian = () => {
+    if (!selectedGuardianId || !selectedRelationship) return
+    const guardian = existingGuardians.find((g) => g.id === selectedGuardianId)
+    if (!guardian) return
+    if (selectedGuardians.some((g) => g.guardianId === selectedGuardianId)) {
+      toast.error("Add guardian failed", { description: "This guardian is already added" })
+      return
+    }
+    setSelectedGuardians([
+      ...selectedGuardians,
+      {
+        guardianId: guardian.id,
+        guardianName: guardian.name,
+        relationship: selectedRelationship,
+        receiveReports: receiveReports,
+        primaryGuardian: primaryGuardian,
+      },
+    ])
+    setReceiveReports(false)
+    setPrimaryGuardian(false)
+    setSelectedGuardianId("")
+    setSelectedRelationship("")
+    setGuardianSearchQuery("")
+    setIsAddGuardianDialogOpen(false)
   }
 
-  const toggleClass = (classId: string) => {
-    setSelectedClasses((prev) => (prev.includes(classId) ? prev.filter((id) => id !== classId) : [...prev, classId]))
+  const createAndAddGuardian = async () => {
+    if (!newGuardian.firstName || !newGuardian.lastName || !newGuardian.phone || !selectedRelationship) {
+      toast.error("Create guardian failed", {
+        description: "Please fill in required fields: Names, Phone, and Relationship",
+      })
+      return
+    }
+    const payload = {
+      first_name: newGuardian.firstName,
+      last_name: newGuardian.lastName,
+      other_name: newGuardian.surname,
+      id_number: newGuardian.idNumber,
+      email: newGuardian.email,
+      phone_number: newGuardian.phone,
+      occupation: newGuardian.occupation,
+    }
+    try {
+      const res = await usersRequests.createUser("guardian", payload)
+      if (res.success && res.data) {
+        const newGuardianData = {
+          id: res.data.id,
+          name: `${newGuardian.firstName} ${newGuardian.lastName} ${newGuardian.surname || ""}`.trim(),
+          idNumber: newGuardian.idNumber,
+          phone: newGuardian.phone,
+          email: newGuardian.email,
+        }
+        setExistingGuardians([...existingGuardians, newGuardianData])
+        setSelectedGuardians([
+          ...selectedGuardians,
+          {
+            guardianId: res.data.id,
+            guardianName: newGuardianData.name,
+            relationship: selectedRelationship,
+            receiveReports: receiveReports,
+            primaryGuardian: primaryGuardian,
+          },
+        ])
+        toast.success("Guardian created and added successfully")
+      } else {
+        toast.error("Create guardian failed", { description: res.error || "Unable to create guardian." })
+      }
+    } catch (err) {
+      toast.error("Create guardian failed", { description: "Something went wrong. Please try again." })
+    }
+    setNewGuardian({ firstName: "", lastName: "", surname: "", idNumber: "", phone: "", email: "", occupation: "" })
+    setSelectedRelationship("")
+    setReceiveReports(false)
+    setPrimaryGuardian(false)
+    setIsCreatingNewGuardian(false)
+    setIsAddGuardianDialogOpen(false)
+  }
+
+  const removeGuardian = (guardianId: string) => {
+    setSelectedGuardians(selectedGuardians.filter((g) => g.guardianId !== guardianId))
   }
 
   const handleCancel = () => {
     router.push("/students")
+  }
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (hasErrors) {
+      toast.error("Validation Error", { description: "Please fill in all required fields." })
+      return
+    }
+
+    setIsButtonLoading(true)
+
+    let photoBase64: string | undefined
+    if (profilePhoto) {
+      photoBase64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = reject
+        reader.readAsDataURL(profilePhoto)
+      })
+    }
+
+    const guardiansPayload = selectedGuardians.map((g) => ({
+      guardian_id: g.guardianId,
+      relationship: g.relationship.toUpperCase(),
+      is_primary: g.primaryGuardian,
+      can_receive_reports: g.receiveReports,
+    }))
+
+    const payload: CreateUserRequest = {
+      first_name: firstName,
+      last_name: lastName,
+      other_name: surname,
+      date_of_birth: dob,
+      gender: gender.toUpperCase(),
+      town_of_residence: town,
+      county_of_residence: county,
+      address,
+      academic_year: academicYear,
+      admission_date: admissionDate,
+      branch_ids: selectedBranch ? [selectedBranch] : [],
+      classroom_id: selectedClassroom || null,
+      medical_info: medicalInformation,
+      additional_info: additionalInformation,
+      student_type: studentType.toUpperCase(),
+      status: enrollmentStatus.toUpperCase(),
+      subscribed_to_transport: subscribedTransport,
+      subscribed_to_meals: subscribedMeals,
+      guardians: guardiansPayload,
+      ...(photoBase64 ? { photo: photoBase64 } : {}),
+    }
+
+    try {
+      const res = await usersRequests.createUser("student", payload as any)
+      if (res.success) {
+        toast.success("Create student successful!", {
+          description: "Student created successfully.",
+          duration: 5000,
+        })
+        router.push("/students")
+      } else {
+        toast.error("Create student failed!", { description: res.error || "Unable to create student." })
+      }
+    } catch (err) {
+      toast.error("Create student failed!", { description: "Something went wrong. Please try again." })
+    } finally {
+      setIsButtonLoading(false)
+    }
   }
 
   return (
@@ -77,19 +386,19 @@ export default function CreateStudentPage() {
                   Back to Students
                 </Button>
               </Link>
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Add New Student</h1>
-                <p className="text-gray-600 dark:text-gray-400 mt-1">Create a comprehensive student profile</p>
-              </div>
             </div>
             <div className="flex space-x-3">
               <Button variant="outline" onClick={handleCancel}>
                 <X className="w-4 h-4 mr-2" />
                 Cancel
               </Button>
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+              <Button
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                disabled={isButtonLoading || hasErrors}
+                onClick={handleSave}
+              >
                 <Save className="w-4 h-4 mr-2" />
-                Save Student
+                {isButtonLoading ? "Saving student..." : "Save Student"}
               </Button>
             </div>
           </div>
@@ -106,85 +415,113 @@ export default function CreateStudentPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                     <div>
                       <Label htmlFor="firstName">First Name *</Label>
-                      <Input id="firstName" placeholder="Enter first name" />
+                      <Input
+                        id="firstName"
+                        placeholder="Enter first name"
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                      />
+                      {errors.firstName && <p className="text-sm text-red-600 mt-1">First name is required</p>}
                     </div>
                     <div>
                       <Label htmlFor="lastName">Last Name *</Label>
-                      <Input id="lastName" placeholder="Enter last name" />
+                      <Input
+                        id="lastName"
+                        placeholder="Enter last name"
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                      />
+                      {errors.lastName && <p className="text-sm text-red-600 mt-1">Last name is required</p>}
+                    </div>
+                    <div>
+                      <Label htmlFor="surname">Surname *</Label>
+                      <Input
+                        id="surname"
+                        placeholder="Enter surname"
+                        value={surname}
+                        onChange={(e) => setSurname(e.target.value)}
+                      />
+                      {errors.surname && <p className="text-sm text-red-600 mt-1">Surname is required</p>}
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                     <div>
                       <Label htmlFor="dateOfBirth">Date of Birth *</Label>
-                      <Input id="dateOfBirth" type="date" />
+                      <Input
+                        id="dateOfBirth"
+                        type="date"
+                        value={dob}
+                        onChange={(e) => setDob(e.target.value)}
+                      />
+                      {errors.dob && <p className="text-sm text-red-600 mt-1">Date of birth is required</p>}
                     </div>
                     <div>
-                      <Label htmlFor="gender">Gender</Label>
-                      <Select>
+                      <Label htmlFor="gender">Gender *</Label>
+                      <Select value={gender} onValueChange={setGender}>
                         <SelectTrigger>
                           <SelectValue placeholder="Select gender" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="male">Male</SelectItem>
                           <SelectItem value="female">Female</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
-                          <SelectItem value="prefer-not-to-say">Prefer not to say</SelectItem>
                         </SelectContent>
                       </Select>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="studentId">Student ID</Label>
-                      <Input id="studentId" placeholder="Auto-generated" disabled />
-                    </div>
-                    <div>
-                      <Label htmlFor="nationality">Nationality</Label>
-                      <Input id="nationality" placeholder="Enter nationality" />
+                      {errors.gender && <p className="text-sm text-red-600 mt-1">Gender is required</p>}
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Contact Information */}
+              {/* Address Information */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center">
                     <Phone className="w-5 h-5 mr-2" />
-                    Contact Information
+                    Address Information
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div>
-                      <Label htmlFor="phone">Phone Number</Label>
-                      <Input id="phone" placeholder="Enter phone number" />
+                      <Label htmlFor="town">Town *</Label>
+                      <Input
+                        id="town"
+                        placeholder="Enter town"
+                        value={town}
+                        onChange={(e) => setTown(e.target.value)}
+                      />
+                      {errors.town && <p className="text-sm text-red-600 mt-1">Town is required</p>}
                     </div>
                     <div>
-                      <Label htmlFor="email">Email Address</Label>
-                      <Input id="email" type="email" placeholder="Enter email address" />
+                      <Label htmlFor="county">County *</Label>
+                      <Select value={county} onValueChange={setCounty}>
+                        <SelectTrigger id="county">
+                          <SelectValue placeholder="Select county" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {counties.map((c) => (
+                            <SelectItem key={c} value={c}>
+                              {c}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {errors.county && <p className="text-sm text-red-600 mt-1">County is required</p>}
                     </div>
                   </div>
                   <div>
                     <Label htmlFor="address">Home Address *</Label>
-                    <Textarea id="address" placeholder="Enter complete home address" rows={3} />
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <Label htmlFor="city">City</Label>
-                      <Input id="city" placeholder="Enter city" />
-                    </div>
-                    <div>
-                      <Label htmlFor="state">State</Label>
-                      <Input id="state" placeholder="Enter state" />
-                    </div>
-                    <div>
-                      <Label htmlFor="zipCode">ZIP Code</Label>
-                      <Input id="zipCode" placeholder="Enter ZIP code" />
-                    </div>
+                    <Textarea
+                      id="address"
+                      placeholder="Enter complete home address"
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                      rows={3}
+                    />
+                    {errors.address && <p className="text-sm text-red-600 mt-1">Address is required</p>}
                   </div>
                 </CardContent>
               </Card>
@@ -198,85 +535,107 @@ export default function CreateStudentPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div>
-                      <Label htmlFor="branch">Branch *</Label>
-                      <Select>
+                      <Label htmlFor="branch">Branch {isActiveStudent && "*"}</Label>
+                      <Select value={selectedBranch} onValueChange={setSelectedBranch} disabled={!isActiveStudent}>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select branch" />
+                          <SelectValue placeholder={isActiveStudent ? "Select branch" : "Not applicable"} />
                         </SelectTrigger>
                         <SelectContent>
                           {branches.map((branch) => (
                             <SelectItem key={branch.id} value={branch.id}>
-                              {branch.name} ({branch.code})
+                              {branch.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
+                      {errors.branch && <p className="text-sm text-red-600 mt-1">Branch is required</p>}
                     </div>
                     <div>
-                      <Label htmlFor="grade">Grade Level *</Label>
-                      <Select>
+                      <Label htmlFor="grade">Grade Level {isActiveStudent && "*"}</Label>
+                      <Select value={selectedGrade} onValueChange={setSelectedGrade} disabled={!isActiveStudent}>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select grade" />
+                          <SelectValue placeholder={isActiveStudent ? "Select grade" : "Not applicable"} />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="k">Kindergarten</SelectItem>
-                          <SelectItem value="1">Grade 1</SelectItem>
-                          <SelectItem value="2">Grade 2</SelectItem>
-                          <SelectItem value="3">Grade 3</SelectItem>
-                          <SelectItem value="4">Grade 4</SelectItem>
-                          <SelectItem value="5">Grade 5</SelectItem>
-                          <SelectItem value="6">Grade 6</SelectItem>
-                          <SelectItem value="7">Grade 7</SelectItem>
-                          <SelectItem value="8">Grade 8</SelectItem>
-                          <SelectItem value="9">Grade 9</SelectItem>
-                          <SelectItem value="10">Grade 10</SelectItem>
-                          <SelectItem value="11">Grade 11</SelectItem>
-                          <SelectItem value="12">Grade 12</SelectItem>
+                          <SelectItem value="baby_class">Baby Class</SelectItem>
+                          <SelectItem value="pp_1">PP 1</SelectItem>
+                          <SelectItem value="pp_2">PP 2</SelectItem>
+                          <SelectItem value="grade_1">Grade 1</SelectItem>
+                          <SelectItem value="grade_2">Grade 2</SelectItem>
+                          <SelectItem value="grade_3">Grade 3</SelectItem>
+                          <SelectItem value="grade_4">Grade 4</SelectItem>
+                          <SelectItem value="grade_5">Grade 5</SelectItem>
+                          <SelectItem value="grade_6">Grade 6</SelectItem>
+                          <SelectItem value="grade_7">Grade 7</SelectItem>
+                          <SelectItem value="grade_8">Grade 8</SelectItem>
+                          <SelectItem value="grade_9">Grade 9</SelectItem>
                         </SelectContent>
                       </Select>
+                      {errors.grade && <p className="text-sm text-red-600 mt-1">Grade is required</p>}
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div>
-                      <Label htmlFor="admissionDate">Admission Date *</Label>
-                      <Input id="admissionDate" type="date" />
+                      <Label htmlFor="classroom">Classroom {isActiveStudent && "*"}</Label>
+                      <Select
+                        value={selectedClassroom}
+                        onValueChange={setSelectedClassroom}
+                        disabled={!isActiveStudent || !selectedBranch || !selectedGrade || availableClassrooms.length === 0}
+                      >
+                        <SelectTrigger>
+                          <SelectValue
+                            placeholder={
+                              !isActiveStudent
+                                ? "Not applicable"
+                                : !selectedBranch || !selectedGrade
+                                ? "Select branch & grade first"
+                                : availableClassrooms.length === 0
+                                ? "No classrooms available"
+                                : "Select classroom"
+                            }
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableClassrooms.map((classroom) => (
+                            <SelectItem key={classroom.id} value={classroom.id}>
+                              {classroom.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {errors.classroom && <p className="text-sm text-red-600 mt-1">Classroom is required</p>}
                     </div>
                     <div>
-                      <Label htmlFor="academicYear">Academic Year</Label>
-                      <Select>
-                        <SelectTrigger>
+                      <Label htmlFor="academicYear">Academic Year {isActiveStudent && "*"}</Label>
+                      <Select value={academicYear} onValueChange={setAcademicYear}>
+                        <SelectTrigger id="academicYear">
                           <SelectValue placeholder="Select academic year" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="2024-2025">2024-2025</SelectItem>
-                          <SelectItem value="2025-2026">2025-2026</SelectItem>
+                          {academicYears.map((year) => (
+                            <SelectItem key={year} value={year}>
+                              {year}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
+                      {errors.academicYear && <p className="text-sm text-red-600 mt-1">Academic year is required</p>}
                     </div>
                   </div>
-                  <div>
-                    <Label>Enrolled Classes</Label>
-                    <div className="mt-2 space-y-2">
-                      {classes.map((classItem) => (
-                        <div key={classItem.id} className="flex items-center justify-between p-3 border rounded-lg">
-                          <div className="flex items-center space-x-3">
-                            <input
-                              type="checkbox"
-                              checked={selectedClasses.includes(classItem.id)}
-                              onChange={() => toggleClass(classItem.id)}
-                              className="rounded"
-                            />
-                            <div>
-                              <p className="font-medium">{classItem.name}</p>
-                              <p className="text-sm text-gray-500">
-                                Grade {classItem.grade} • {classItem.teacher}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div>
+                      <Label htmlFor="admissionDate">Admission Date *</Label>
+                      <Input
+                        id="admissionDate"
+                        type="date"
+                        value={admissionDate}
+                        onChange={(e) => setAdmissionDate(e.target.value)}
+                      />
+                      {errors.admissionDate && <p className="text-sm text-red-600 mt-1">Admission date is required</p>}
                     </div>
                   </div>
                 </CardContent>
@@ -288,81 +647,45 @@ export default function CreateStudentPage() {
                   <div className="flex items-center justify-between">
                     <CardTitle className="flex items-center">
                       <Users className="w-5 h-5 mr-2" />
-                      Guardian Information
+                      Guardian Information *
                     </CardTitle>
-                    <Button variant="outline" size="sm" onClick={addGuardian}>
-                      <User className="w-4 h-4 mr-2" />
+                    <Button variant="outline" size="sm" onClick={() => setIsAddGuardianDialogOpen(true)}>
+                      <Plus className="w-4 h-4 mr-2" />
                       Add Guardian
                     </Button>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-6">
-                  {guardians.map((guardian, index) => (
-                    <div key={index} className="space-y-4 p-4 border rounded-lg">
-                      <div className="flex items-center justify-between">
-                        <h4 className="font-medium">Guardian {index + 1}</h4>
-                        {guardians.length > 1 && (
-                          <Button variant="ghost" size="sm" onClick={() => removeGuardian(index)}>
+                <CardContent>
+                  {errors.guardians && <p className="text-sm text-red-600 mb-3">At least one guardian is required</p>}
+                  {selectedGuardians.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                      <p>No guardians added yet</p>
+                      <p className="text-sm">Click "Add Guardian" to select or create a guardian</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {selectedGuardians.map((guardian) => (
+                        <div
+                          key={guardian.guardianId}
+                          className="flex items-center justify-between p-4 border rounded-lg bg-gray-50 dark:bg-gray-800"
+                        >
+                          <div className="flex items-center space-x-3">
+                            <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
+                              <User className="w-5 h-5 text-blue-600 dark:text-blue-300" />
+                            </div>
+                            <div>
+                              <p className="font-medium">{guardian.guardianName}</p>
+                              <p className="text-sm text-gray-500 capitalize">{guardian.relationship}</p>
+                            </div>
+                          </div>
+                          <Button variant="ghost" size="sm" onClick={() => removeGuardian(guardian.guardianId)}>
                             <X className="w-4 h-4" />
                           </Button>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <Label>Full Name *</Label>
-                          <Input
-                            value={guardian.name}
-                            onChange={(e) => updateGuardian(index, "name", e.target.value)}
-                            placeholder="Enter guardian name"
-                          />
                         </div>
-                        <div>
-                          <Label>Relationship *</Label>
-                          <Select
-                            value={guardian.relationship}
-                            onValueChange={(value) => updateGuardian(index, "relationship", value)}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select relationship" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {guardianRelationships.map((rel) => (
-                                <SelectItem key={rel} value={rel.toLowerCase()}>
-                                  {rel}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <Label>Phone Number *</Label>
-                          <Input
-                            value={guardian.phone}
-                            onChange={(e) => updateGuardian(index, "phone", e.target.value)}
-                            placeholder="Enter phone number"
-                          />
-                        </div>
-                        <div>
-                          <Label>Email Address</Label>
-                          <Input
-                            value={guardian.email}
-                            onChange={(e) => updateGuardian(index, "email", e.target.value)}
-                            placeholder="Enter email address"
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <Label>Occupation</Label>
-                        <Input
-                          value={guardian.occupation}
-                          onChange={(e) => updateGuardian(index, "occupation", e.target.value)}
-                          placeholder="Enter occupation"
-                        />
-                      </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
                 </CardContent>
               </Card>
 
@@ -380,16 +703,20 @@ export default function CreateStudentPage() {
                     <Textarea
                       id="medicalInfo"
                       placeholder="Any medical conditions, allergies, or special requirements"
+                      value={medicalInformation}
+                      onChange={(e) => setMedicalInformation(e.target.value)}
                       rows={3}
                     />
                   </div>
                   <div>
-                    <Label htmlFor="emergencyContact">Emergency Contact</Label>
-                    <Input id="emergencyContact" placeholder="Emergency contact name and phone" />
-                  </div>
-                  <div>
                     <Label htmlFor="notes">Additional Notes</Label>
-                    <Textarea id="notes" placeholder="Any additional information about the student" rows={3} />
+                    <Textarea
+                      id="notes"
+                      placeholder="Any additional information about the student"
+                      value={additionalInformation}
+                      onChange={(e) => setAdditionalInformation(e.target.value)}
+                      rows={3}
+                    />
                   </div>
                 </CardContent>
               </Card>
@@ -404,10 +731,30 @@ export default function CreateStudentPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="flex flex-col items-center space-y-4">
-                    <div className="w-32 h-32 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center">
-                      <User className="w-16 h-16 text-gray-400" />
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (!file) return
+                        if (file.size > 2 * 1024 * 1024) {
+                          toast.error("Image too large", { description: "Maximum allowed size is 2MB" })
+                          return
+                        }
+                        setProfilePhoto(file)
+                        setProfilePreview(URL.createObjectURL(file))
+                      }}
+                    />
+                    <div className="w-32 h-32 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center overflow-hidden">
+                      {profilePreview ? (
+                        <img src={profilePreview} alt="Profile preview" className="w-full h-full object-cover" />
+                      ) : (
+                        <User className="w-16 h-16 text-gray-400" />
+                      )}
                     </div>
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
                       <Upload className="w-4 h-4 mr-2" />
                       Upload Photo
                     </Button>
@@ -416,82 +763,333 @@ export default function CreateStudentPage() {
                 </CardContent>
               </Card>
 
-              {/* Quick Stats */}
+              {/* Student Status */}
               <Card>
                 <CardHeader>
                   <CardTitle>Student Status</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
+                    <Label htmlFor="studentType">Student Type *</Label>
+                    <Select value={studentType} onValueChange={(value) => setStudentType(value as any)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="day_scholar">Day Scholar</SelectItem>
+                        <SelectItem value="boarder">Boarding</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {errors.studentType && <p className="text-sm text-red-600 mt-1">Student type is required</p>}
+                  </div>
+                  <div>
                     <Label htmlFor="status">Enrollment Status</Label>
-                    <Select defaultValue="active">
+                    <Select value={enrollmentStatus} onValueChange={setEnrollmentStatus}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="pending">Pending</SelectItem>
-                        <SelectItem value="inactive">Inactive</SelectItem>
                         <SelectItem value="graduated">Graduated</SelectItem>
                         <SelectItem value="transferred">Transferred</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                  <div>
-                    <Label htmlFor="transportMode">Transportation</Label>
-                    <Select>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select transport mode" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="school-bus">School Bus</SelectItem>
-                        <SelectItem value="private-transport">Private Transport</SelectItem>
-                        <SelectItem value="walking">Walking</SelectItem>
-                        <SelectItem value="public-transport">Public Transport</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="lunchProgram">Lunch Program</Label>
-                    <Select>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select lunch option" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="school-lunch">School Lunch</SelectItem>
-                        <SelectItem value="home-lunch">Home Lunch</SelectItem>
-                        <SelectItem value="free-lunch">Free Lunch Program</SelectItem>
-                        <SelectItem value="reduced-lunch">Reduced Price Lunch</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  {studentType === "day_scholar" && (
+                    <>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="subscribedTransport"
+                          checked={subscribedTransport}
+                          onCheckedChange={(checked) => setSubscribedTransport(!!checked)}
+                        />
+                        <Label htmlFor="subscribedTransport" className="text-sm font-normal cursor-pointer">
+                          Subscribed to Transport
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="subscribedMeals"
+                          checked={subscribedMeals}
+                          onCheckedChange={(checked) => setSubscribedMeals(!!checked)}
+                        />
+                        <Label htmlFor="subscribedMeals" className="text-sm font-normal cursor-pointer">
+                          Subscribed to Meals
+                        </Label>
+                      </div>
+                    </>
+                  )}
                 </CardContent>
               </Card>
-
-              {/* Selected Classes Summary */}
-              {selectedClasses.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Selected Classes ({selectedClasses.length})</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      {selectedClasses.map((classId) => {
-                        const classItem = classes.find((c) => c.id === classId)
-                        return classItem ? (
-                          <Badge key={classId} variant="outline" className="w-full justify-start">
-                            {classItem.name}
-                          </Badge>
-                        ) : null
-                      })}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
             </div>
           </div>
         </div>
       </MainContent>
+
+      {/* Add Guardian Dialog */}
+      <Dialog open={isAddGuardianDialogOpen} onOpenChange={setIsAddGuardianDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Add Guardian</DialogTitle>
+            <DialogDescription>
+              Search for an existing guardian or create a new one
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {!isCreatingNewGuardian ? (
+              <>
+                {/* Search Existing Guardian */}
+                <div>
+                  <Label>Search Guardian</Label>
+                  <div className="relative mt-1">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input
+                      placeholder="Search by name, ID, or phone..."
+                      value={guardianSearchQuery}
+                      onChange={(e) => setGuardianSearchQuery(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                </div>
+                {/* Guardian Selection */}
+                {guardianSearchQuery && (
+                  <div className="border rounded-lg max-h-48 overflow-y-auto">
+                    {filteredGuardians.length > 0 ? (
+                      filteredGuardians.map((guardian) => (
+                        <div
+                          key={guardian.id}
+                          onClick={() => setSelectedGuardianId(guardian.id)}
+                          className={`p-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 border-b last:border-b-0 ${
+                            selectedGuardianId === guardian.id ? "bg-blue-50 dark:bg-blue-900" : ""
+                          }`}
+                        >
+                          <p className="font-medium">{guardian.name}</p>
+                          <p className="text-sm text-gray-500">
+                            {guardian.phone} • {guardian.email}
+                          </p>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-4 text-center text-gray-500">No guardians found</div>
+                    )}
+                  </div>
+                )}
+                {selectedGuardianId && (
+                  <div className="space-y-3 mt-3">
+                    <div>
+                      <Label>Relationship *</Label>
+                      <Select value={selectedRelationship} onValueChange={setSelectedRelationship}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select relationship" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {guardianRelationships.map((rel) => (
+                            <SelectItem key={rel} value={rel.toLowerCase()}>
+                              {rel}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex flex-col space-y-2 mt-2">
+                      <label className="inline-flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={primaryGuardian}
+                          onChange={(e) => setPrimaryGuardian(e.target.checked)}
+                          className="form-checkbox h-4 w-4 text-blue-600"
+                        />
+                        <span className="ml-2 text-sm">Primary Guardian</span>
+                      </label>
+                      <label className="inline-flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={receiveReports}
+                          onChange={(e) => setReceiveReports(e.target.checked)}
+                          className="form-checkbox h-4 w-4 text-blue-600"
+                        />
+                        <span className="ml-2 text-sm">Receive Reports</span>
+                      </label>
+                    </div>
+                  </div>
+                )}
+                <div className="flex items-center justify-center py-2">
+                  <Button
+                    variant="link"
+                    onClick={() => setIsCreatingNewGuardian(true)}
+                    className="text-blue-600"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Create New Guardian Instead
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* Create New Guardian Form */}
+                <div className="space-y-4 max-h-[80vh] overflow-y-auto p-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">ID Number</Label>
+                      <Input
+                        value={newGuardian.idNumber || ""}
+                        onChange={(e) => setNewGuardian({ ...newGuardian, idNumber: e.target.value })}
+                        placeholder="12345678"
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">
+                        First Name <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        value={newGuardian.firstName}
+                        onChange={(e) => setNewGuardian({ ...newGuardian, firstName: e.target.value })}
+                        placeholder="John"
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">
+                        Last Name <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        value={newGuardian.lastName}
+                        onChange={(e) => setNewGuardian({ ...newGuardian, lastName: e.target.value })}
+                        placeholder="Doe"
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Other Name</Label>
+                      <Input
+                        value={newGuardian.surname}
+                        onChange={(e) => setNewGuardian({ ...newGuardian, surname: e.target.value })}
+                        placeholder="Middle (optional)"
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">
+                        Phone Number <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        value={newGuardian.phone}
+                        onChange={(e) => setNewGuardian({ ...newGuardian, phone: e.target.value })}
+                        placeholder="+254 712 345 678"
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Email Address</Label>
+                      <Input
+                        value={newGuardian.email}
+                        onChange={(e) => setNewGuardian({ ...newGuardian, email: e.target.value })}
+                        placeholder="guardian@example.com"
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Occupation</Label>
+                      <Input
+                        value={newGuardian.occupation}
+                        onChange={(e) => setNewGuardian({ ...newGuardian, occupation: e.target.value })}
+                        placeholder="Teacher"
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">
+                        Relationship <span className="text-red-500">*</span>
+                      </Label>
+                      <Select value={selectedRelationship} onValueChange={setSelectedRelationship}>
+                        <SelectTrigger className="h-8 text-sm">
+                          <SelectValue placeholder="Select" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {guardianRelationships.map((rel) => (
+                            <SelectItem key={rel} value={rel.toLowerCase()}>
+                              {rel}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-6 pt-2">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="primary"
+                        checked={primaryGuardian}
+                        onCheckedChange={(checked) => setPrimaryGuardian(Boolean(checked))}
+                      />
+                      <Label htmlFor="primary" className="text-sm font-normal cursor-pointer">
+                        Primary Guardian
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="reports"
+                        checked={receiveReports}
+                        onCheckedChange={(checked) => setReceiveReports(Boolean(checked))}
+                      />
+                      <Label htmlFor="reports" className="text-sm font-normal cursor-pointer">
+                        Receive Reports
+                      </Label>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-center py-2">
+                  <Button
+                    variant="link"
+                    onClick={() => {
+                      setIsCreatingNewGuardian(false)
+                      setNewGuardian({ firstName: "", lastName: "", surname: "", idNumber: "", phone: "", email: "", occupation: "" })
+                    }}
+                    className="text-blue-600"
+                  >
+                    <Search className="w-4 h-4 mr-2" />
+                    Search Existing Guardians Instead
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsAddGuardianDialogOpen(false)
+                setIsCreatingNewGuardian(false)
+                setSelectedGuardianId("")
+                setSelectedRelationship("")
+                setGuardianSearchQuery("")
+                setNewGuardian({ firstName: "", lastName: "", surname: "", idNumber: "", phone: "", email: "", occupation: "" })
+                setPrimaryGuardian(false)
+                setReceiveReports(false)
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={isCreatingNewGuardian ? createAndAddGuardian : addExistingGuardian}
+              disabled={
+                isCreatingNewGuardian
+                  ? !newGuardian.firstName || !newGuardian.lastName || !newGuardian.phone || !selectedRelationship
+                  : !selectedGuardianId || !selectedRelationship
+              }
+            >
+              {isCreatingNewGuardian ? "Create & Add Guardian" : "Add Guardian"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

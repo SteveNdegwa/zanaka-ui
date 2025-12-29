@@ -1,5 +1,4 @@
 "use client"
-
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Sidebar } from "@/components/sidebar"
@@ -15,23 +14,23 @@ import { Badge } from "@/components/ui/badge"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfYear, endOfYear, subDays, subWeeks, subMonths, subYears } from "date-fns"
-import { CalendarIcon, Search, Eye, DollarSign, CheckCircle, AlertCircle, ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from "lucide-react"
-import { financeRequests, Invoice, InvoiceStatus } from "@/lib/requests/finances"
+import { CalendarIcon, Search, Eye, DollarSign, CheckCircle, AlertCircle, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, PhoneIncoming, Building2, Wallet, ScrollText, CreditCard } from "lucide-react"
+import { financeRequests, Payment, PaymentStatus, PaymentMethod } from "@/lib/requests/finances"
 import { useToast } from "@/src/use-toast"
 
 type DateRangePreset = "all" | "today" | "yesterday" | "this_week" | "last_week" | "this_month" | "last_month" | "this_year" | "last_year" | "custom"
 
-export default function InvoicesPage() {
+export default function PaymentsPage() {
   const router = useRouter()
   const { toast } = useToast()
 
-  const [allInvoices, setAllInvoices] = useState<Invoice[]>([])
+  const [allPayments, setAllPayments] = useState<Payment[]>([])
   const [loading, setLoading] = useState(true)
 
   // Filters
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
-  const [feeItemFilter, setFeeItemFilter] = useState<string>("all")
+  const [methodFilter, setMethodFilter] = useState<string>("all")
   const [minAmount, setMinAmount] = useState("")
   const [maxAmount, setMaxAmount] = useState("")
   const [datePreset, setDatePreset] = useState<DateRangePreset>("all")
@@ -45,114 +44,119 @@ export default function InvoicesPage() {
   // Minimizable filters
   const [filtersOpen, setFiltersOpen] = useState(false)
 
-  // Unique fee items
-  const feeItems = Array.from(new Set(allInvoices.flatMap(inv => inv.invoice_items.map(item => item.description))))
-
-  // Fetch invoices
+  // Fetch payments
   useEffect(() => {
-    const fetchInvoices = async () => {
+    const fetchPayments = async () => {
       setLoading(true)
-      const response = await financeRequests.listInvoices({})
+      const response = await financeRequests.listPayments({})
       if (response.success && response.data) {
-        setAllInvoices(response.data)
+        setAllPayments(response.data)
       } else {
-        toast.error("Failed to load invoices")
+        toast.error("Failed to load payments")
       }
       setLoading(false)
     }
-
-    fetchInvoices()
+    fetchPayments()
   }, [toast])
 
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchTerm, statusFilter, feeItemFilter, minAmount, maxAmount, datePreset, customStartDate, customEndDate, pageSize])
+  }, [searchTerm, statusFilter, methodFilter, minAmount, maxAmount, datePreset, customStartDate, customEndDate, pageSize])
 
   // Apply filters
-  const filteredInvoices = allInvoices
-    .filter(inv => 
-      searchTerm === "" || 
-      inv.invoice_reference.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      inv.student_full_name.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredPayments = allPayments
+    .filter(p =>
+      searchTerm === "" ||
+      p.payment_reference.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.student_full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.student_reg_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.mpesa_receipt_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.bank_reference?.toLowerCase().includes(searchTerm.toLowerCase())
     )
-    .filter(inv => statusFilter === "all" || inv.status === statusFilter)
-    .filter(inv => {
-      if (feeItemFilter === "all") return true
-      return inv.invoice_items.some(item =>
-        item.description.toLowerCase() === feeItemFilter.toLowerCase()
-      )
-    })
-    .filter(inv => {
-      const amount = parseFloat(inv.total_amount)
+    .filter(p => statusFilter === "all" || p.status === statusFilter)
+    .filter(p => methodFilter === "all" || p.payment_method === methodFilter)
+    .filter(p => {
+      const amount = parseFloat(p.amount)
       const min = minAmount ? parseFloat(minAmount) : -Infinity
       const max = maxAmount ? parseFloat(maxAmount) : Infinity
       return amount >= min && amount <= max
     })
-    .filter(inv => {
+    .filter(p => {
       if (datePreset === "all") return true
-      const issueDate = new Date(inv.created_at)
+      const paymentDate = new Date(p.created_at)
       const now = new Date()
-
       switch (datePreset) {
         case "today":
-          return format(issueDate, "yyyy-MM-dd") === format(now, "yyyy-MM-dd")
+          return format(paymentDate, "yyyy-MM-dd") === format(now, "yyyy-MM-dd")
         case "yesterday":
-          return format(issueDate, "yyyy-MM-dd") === format(subDays(now, 1), "yyyy-MM-dd")
+          return format(paymentDate, "yyyy-MM-dd") === format(subDays(now, 1), "yyyy-MM-dd")
         case "this_week":
-          return issueDate >= startOfWeek(now) && issueDate <= endOfWeek(now)
+          return paymentDate >= startOfWeek(now) && paymentDate <= endOfWeek(now)
         case "last_week":
           const lastWeekStart = startOfWeek(subWeeks(now, 1))
           const lastWeekEnd = endOfWeek(subWeeks(now, 1))
-          return issueDate >= lastWeekStart && issueDate <= lastWeekEnd
+          return paymentDate >= lastWeekStart && paymentDate <= lastWeekEnd
         case "this_month":
-          return issueDate >= startOfMonth(now) && issueDate <= endOfMonth(now)
+          return paymentDate >= startOfMonth(now) && paymentDate <= endOfMonth(now)
         case "last_month":
           const lastMonthStart = startOfMonth(subMonths(now, 1))
           const lastMonthEnd = endOfMonth(subMonths(now, 1))
-          return issueDate >= lastMonthStart && issueDate <= lastMonthEnd
+          return paymentDate >= lastMonthStart && paymentDate <= lastMonthEnd
         case "this_year":
-          return issueDate >= startOfYear(now) && issueDate <= endOfYear(now)
+          return paymentDate >= startOfYear(now) && paymentDate <= endOfYear(now)
         case "last_year":
           const lastYearStart = startOfYear(subYears(now, 1))
           const lastYearEnd = endOfYear(subYears(now, 1))
-          return issueDate >= lastYearStart && issueDate <= lastYearEnd
+          return paymentDate >= lastYearStart && paymentDate <= lastYearEnd
         case "custom":
           if (!customStartDate || !customEndDate) return true
-          return issueDate >= customStartDate && issueDate <= customEndDate
+          return paymentDate >= customStartDate && paymentDate <= customEndDate
         default:
           return true
       }
     })
 
-  // Totals (exclude cancelled)
-  const activeInvoicesForTotals = filteredInvoices.filter(inv => inv.status !== InvoiceStatus.CANCELLED)
-  const totalInvoiced = activeInvoicesForTotals.reduce((sum, inv) => sum + parseFloat(inv.total_amount), 0)
-  const totalPaid = activeInvoicesForTotals.reduce((sum, inv) => sum + parseFloat(inv.paid_amount), 0)
-  const totalBalance = activeInvoicesForTotals.reduce((sum, inv) => sum + parseFloat(inv.balance), 0)
+  // Totals
+  const totalCollected = filteredPayments.reduce((sum, p) => sum + parseFloat(p.amount), 0)
+  const completedPayments = filteredPayments.filter(p => p.status === PaymentStatus.COMPLETED)
+  const totalCompleted = completedPayments.reduce((sum, p) => sum + parseFloat(p.amount), 0)
+  const pendingPayments = filteredPayments.filter(p => p.status === PaymentStatus.PENDING)
+  const totalPending = pendingPayments.reduce((sum, p) => sum + parseFloat(p.amount), 0)
 
   // Pagination logic
   const isShowAll = pageSize === "all"
-  const totalPages = isShowAll ? 1 : Math.ceil(filteredInvoices.length / (pageSize as number))
-  const paginatedInvoices = isShowAll
-    ? filteredInvoices
-    : filteredInvoices.slice((currentPage - 1) * (pageSize as number), currentPage * (pageSize as number))
+  const totalPages = isShowAll ? 1 : Math.ceil(filteredPayments.length / (pageSize as number))
+  const paginatedPayments = isShowAll
+    ? filteredPayments
+    : filteredPayments.slice((currentPage - 1) * (pageSize as number), currentPage * (pageSize as number))
 
-  const getStatusBadge = (status: string) => {
-    const config: Record<string, { label: string; variant: any }> = {
-      [InvoiceStatus.PAID]: { label: "Paid", variant: "default" },
-      [InvoiceStatus.PARTIALLY_PAID]: { label: "Partially Paid", variant: "secondary" },
-      [InvoiceStatus.PENDING]: { label: "Pending", variant: "secondary" },
-      [InvoiceStatus.OVERDUE]: { label: "Overdue", variant: "destructive" },
-      [InvoiceStatus.CANCELLED]: { label: "Cancelled", variant: "destructive" },
+  const getMethodIcon = (method: string) => {
+    switch (method) {
+      case "MPESA": return <PhoneIncoming className="h-4 w-4" />
+      case "BANK": return <Building2 className="h-4 w-4" />
+      case "CASH": return <Wallet className="h-4 w-4" />
+      case "CHEQUE": return <ScrollText className="h-4 w-4" />
+      case "CARD": return <CreditCard className="h-4 w-4" />
+      default: return <CreditCard className="h-4 w-4" />
     }
+  }
 
+  const getStatusBadge = (status: PaymentStatus) => {
+    const config: Record<PaymentStatus, { label: string; variant: any }> = {
+      [PaymentStatus.COMPLETED]: { label: "Completed", variant: "default" },
+      [PaymentStatus.PENDING]: { label: "Pending Approval", variant: "secondary" },
+      [PaymentStatus.REVERSED]: { label: "Reversed", variant: "destructive" },
+      [PaymentStatus.FAILED]: { label: "Failed", variant: "destructive" },
+      [PaymentStatus.REFUNDED]: { label: "Fully Refunded", variant: "destructive" },
+      [PaymentStatus.PARTIALLY_REFUNDED]: { label: "Partially Refunded", variant: "secondary" },
+    }
     const cfg = config[status] || { label: status, variant: "secondary" }
     return <Badge variant={cfg.variant}>{cfg.label}</Badge>
   }
 
-  const handleViewInvoice = (invoiceId: string) => {
-    router.push(`/finance/invoices/${invoiceId}`)
+  const handleViewPayment = (studentId: string, paymentId: string) => {
+    router.push(`/students/${studentId}/payments/${paymentId}`)
   }
 
   return (
@@ -162,147 +166,148 @@ export default function InvoicesPage() {
       <MainContent>
         <div className="container mx-auto px-6 py-8 max-w-7xl">
           <div className="mb-8">
-            <h1 className="text-3xl font-bold tracking-tight">Invoices</h1>
-            <p className="text-muted-foreground">View and manage all student invoices</p>
+            <h1 className="text-3xl font-bold tracking-tight">Payments</h1>
+            <p className="text-muted-foreground">View and manage all student payments</p>
           </div>
 
           {/* Summary Cards */}
           <div className="grid gap-6 md:grid-cols-3 mb-8">
             <Card className="shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-                <CardTitle className="text-sm font-medium">Total Invoiced</CardTitle>
+                <CardTitle className="text-sm font-medium">Total Collected</CardTitle>
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">KSh {totalInvoiced.toLocaleString()}</div>
-                <p className="text-xs text-muted-foreground mt-1">From active invoices</p>
+                <div className="text-2xl font-bold">KSh {totalCollected.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground mt-1">All filtered payments</p>
               </CardContent>
             </Card>
 
             <Card className="shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-                <CardTitle className="text-sm font-medium">Total Paid</CardTitle>
+                <CardTitle className="text-sm font-medium">Completed Payments</CardTitle>
                 <CheckCircle className="h-4 w-4 text-green-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-green-600">KSh {totalPaid.toLocaleString()}</div>
-                <p className="text-xs text-muted-foreground mt-1">Received on active invoices</p>
+                <div className="text-2xl font-bold text-green-600">KSh {totalCompleted.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground mt-1">Approved and usable</p>
               </CardContent>
             </Card>
 
             <Card className="shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-                <CardTitle className="text-sm font-medium">Outstanding Balance</CardTitle>
-                <AlertCircle className="h-4 w-4 text-red-600" />
+                <CardTitle className="text-sm font-medium">Pending Approval</CardTitle>
+                <AlertCircle className="h-4 w-4 text-orange-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-red-600">KSh {totalBalance.toLocaleString()}</div>
-                <p className="text-xs text-muted-foreground mt-1">Remaining on active invoices</p>
+                <div className="text-2xl font-bold text-orange-600">KSh {totalPending.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground mt-1">Awaiting verification</p>
               </CardContent>
             </Card>
           </div>
 
           {/* Minimizable Filters - Enhanced Styling */}
-          <Card className="mb-6 shadow-sm">
+            <Card className="mb-6 shadow-sm">
             <CardHeader className="pb-3">
-              <button
+                <button
                 onClick={() => setFiltersOpen(!filtersOpen)}
                 className="flex items-center justify-between w-full text-left hover:bg-accent/50 rounded-lg px-4 py-2 -mx-4 transition-colors"
-              >
+                >
                 <CardTitle className="text-lg">Filters</CardTitle>
                 {filtersOpen ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
-              </button>
+                </button>
             </CardHeader>
 
             {filtersOpen && (
-              <CardContent className="pt-6 border-t">
+                <CardContent className="pt-6 border-t">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {/* Search */}
-                  <div className="lg:col-span-2 xl:col-span-1">
+                    {/* Search */}
+                    <div className="lg:col-span-2 xl:col-span-1">
                     <Label htmlFor="search" className="text-sm font-medium">
-                      Search
+                        Search
                     </Label>
                     <div className="relative mt-2">
-                      <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input
+                        <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Input
                         id="search"
-                        placeholder="Invoice ref, student name..."
+                        placeholder="Reference, student, receipt, bank ref..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="pl-10"
-                      />
+                        />
                     </div>
-                  </div>
+                    </div>
 
-                  {/* Status */}
-                  <div>
+                    {/* Status */}
+                    <div>
                     <Label htmlFor="status" className="text-sm font-medium">
-                      Status
+                        Status
                     </Label>
                     <Select value={statusFilter} onValueChange={setStatusFilter}>
-                      <SelectTrigger id="status" className="mt-2">
+                        <SelectTrigger id="status" className="mt-2">
                         <SelectValue placeholder="All Status" />
-                      </SelectTrigger>
-                      <SelectContent>
+                        </SelectTrigger>
+                        <SelectContent>
                         <SelectItem value="all">All Status</SelectItem>
-                        <SelectItem value={InvoiceStatus.PAID}>Paid</SelectItem>
-                        <SelectItem value={InvoiceStatus.PARTIALLY_PAID}>Partially Paid</SelectItem>
-                        <SelectItem value={InvoiceStatus.PENDING}>Pending</SelectItem>
-                        <SelectItem value={InvoiceStatus.OVERDUE}>Overdue</SelectItem>
-                        <SelectItem value={InvoiceStatus.CANCELLED}>Cancelled</SelectItem>
-                      </SelectContent>
+                        <SelectItem value={PaymentStatus.COMPLETED}>Completed</SelectItem>
+                        <SelectItem value={PaymentStatus.PENDING}>Pending Approval</SelectItem>
+                        <SelectItem value={PaymentStatus.REVERSED}>Reversed</SelectItem>
+                        <SelectItem value={PaymentStatus.FAILED}>Failed</SelectItem>
+                        <SelectItem value={PaymentStatus.REFUNDED}>Fully Refunded</SelectItem>
+                        <SelectItem value={PaymentStatus.PARTIALLY_REFUNDED}>Partially Refunded</SelectItem>
+                        </SelectContent>
                     </Select>
-                  </div>
+                    </div>
 
-                  {/* Fee Item */}
-                  <div>
-                    <Label htmlFor="feeItem" className="text-sm font-medium">
-                      Fee Item
+                    {/* Payment Method */}
+                    <div>
+                    <Label htmlFor="method" className="text-sm font-medium">
+                        Payment Method
                     </Label>
-                    <Select value={feeItemFilter} onValueChange={setFeeItemFilter}>
-                      <SelectTrigger id="feeItem" className="mt-2">
-                        <SelectValue placeholder="All Fee Items" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Fee Items</SelectItem>
-                        {feeItems.map((item) => (
-                          <SelectItem key={item} value={item}>
-                            {item}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
+                    <Select value={methodFilter} onValueChange={setMethodFilter}>
+                        <SelectTrigger id="method" className="mt-2">
+                        <SelectValue placeholder="All Methods" />
+                        </SelectTrigger>
+                        <SelectContent>
+                        <SelectItem value="all">All Methods</SelectItem>
+                        <SelectItem value={PaymentMethod.MPESA}>M-Pesa</SelectItem>
+                        <SelectItem value={PaymentMethod.BANK}>Bank Transfer</SelectItem>
+                        <SelectItem value={PaymentMethod.CASH}>Cash</SelectItem>
+                        <SelectItem value={PaymentMethod.CHEQUE}>Cheque</SelectItem>
+                        <SelectItem value={PaymentMethod.CARD}>Card</SelectItem>
+                        </SelectContent>
                     </Select>
-                  </div>
+                    </div>
 
-                  {/* Amount Range */}
-                  <div className="lg:col-span-2 xl:col-span-1">
+                    {/* Amount Range */}
+                    <div className="lg:col-span-2 xl:col-span-1">
                     <Label className="text-sm font-medium">Amount Range (KSh)</Label>
                     <div className="grid grid-cols-2 gap-3 mt-2">
-                      <Input
+                        <Input
                         type="number"
                         placeholder="Min"
                         value={minAmount}
                         onChange={(e) => setMinAmount(e.target.value)}
-                      />
-                      <Input
+                        />
+                        <Input
                         type="number"
                         placeholder="Max"
                         value={maxAmount}
                         onChange={(e) => setMaxAmount(e.target.value)}
-                      />
+                        />
                     </div>
-                  </div>
+                    </div>
 
-                  {/* Date Range Preset */}
-                  <div>
+                    {/* Date Range Preset */}
+                    <div>
                     <Label htmlFor="date-preset" className="text-sm font-medium">
-                      Date Range
+                        Date Range
                     </Label>
                     <Select value={datePreset} onValueChange={(v) => setDatePreset(v as DateRangePreset)}>
-                      <SelectTrigger id="date-preset" className="mt-2">
+                        <SelectTrigger id="date-preset" className="mt-2">
                         <SelectValue placeholder="Select range" />
-                      </SelectTrigger>
-                      <SelectContent>
+                        </SelectTrigger>
+                        <SelectContent>
                         <SelectItem value="all">All Time</SelectItem>
                         <SelectItem value="today">Today</SelectItem>
                         <SelectItem value="yesterday">Yesterday</SelectItem>
@@ -313,66 +318,66 @@ export default function InvoicesPage() {
                         <SelectItem value="this_year">This Year</SelectItem>
                         <SelectItem value="last_year">Last Year</SelectItem>
                         <SelectItem value="custom">Custom Range</SelectItem>
-                      </SelectContent>
+                        </SelectContent>
                     </Select>
-                  </div>
-
-                  {/* Custom Date Range */}
-                  {datePreset === "custom" && (
-                    <div className="lg:col-span-2 xl:col-span-2">
-                      <Label className="text-sm font-medium">Custom Date Range</Label>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="outline"
-                              className="justify-start text-left font-normal w-full"
-                            >
-                              <CalendarIcon className="mr-2 h-4 w-4" />
-                              {customStartDate ? format(customStartDate, "PPP") : "Start date"}
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={customStartDate}
-                              onSelect={setCustomStartDate}
-                              initialFocus
-                            />
-                          </PopoverContent>
-                        </Popover>
-
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant="outline"
-                              className="justify-start text-left font-normal w-full"
-                            >
-                              <CalendarIcon className="mr-2 h-4 w-4" />
-                              {customEndDate ? format(customEndDate, "PPP") : "End date"}
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={customEndDate}
-                              onSelect={setCustomEndDate}
-                              initialFocus
-                            />
-                          </PopoverContent>
-                        </Popover>
-                      </div>
                     </div>
-                  )}
-                </div>
-              </CardContent>
-            )}
-          </Card>
 
-          {/* Invoices Table */}
+                    {/* Custom Date Range */}
+                    {datePreset === "custom" && (
+                    <div className="lg:col-span-2 xl:col-span-2">
+                        <Label className="text-sm font-medium">Custom Date Range</Label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+                        <Popover>
+                            <PopoverTrigger asChild>
+                            <Button
+                                variant="outline"
+                                className="justify-start text-left font-normal w-full"
+                            >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {customStartDate ? format(customStartDate, "PPP") : "Start date"}
+                            </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                                mode="single"
+                                selected={customStartDate}
+                                onSelect={setCustomStartDate}
+                                initialFocus
+                            />
+                            </PopoverContent>
+                        </Popover>
+
+                        <Popover>
+                            <PopoverTrigger asChild>
+                            <Button
+                                variant="outline"
+                                className="justify-start text-left font-normal w-full"
+                            >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {customEndDate ? format(customEndDate, "PPP") : "End date"}
+                            </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                                mode="single"
+                                selected={customEndDate}
+                                onSelect={setCustomEndDate}
+                                initialFocus
+                            />
+                            </PopoverContent>
+                        </Popover>
+                        </div>
+                    </div>
+                    )}
+                </div>
+                </CardContent>
+            )}
+            </Card>
+
+          {/* Payments Table */}
           <Card className="shadow-sm">
             <CardHeader>
-              <CardTitle className="text-lg">Invoices ({filteredInvoices.length})</CardTitle>
+              <CardTitle className="text-lg">Payments ({filteredPayments.length})</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="rounded-md border">
@@ -381,11 +386,11 @@ export default function InvoicesPage() {
                     <TableRow>
                       <TableHead>Reference</TableHead>
                       <TableHead>Student</TableHead>
+                      <TableHead>Method</TableHead>
                       <TableHead>Amount</TableHead>
-                      <TableHead>Paid</TableHead>
-                      <TableHead>Balance</TableHead>
-                      <TableHead>Issue Date</TableHead>
-                      <TableHead>Due Date</TableHead>
+                      <TableHead>Unassigned</TableHead>
+                      {/* <TableHead>Available Refund</TableHead> */}
+                      <TableHead>Date</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -394,28 +399,35 @@ export default function InvoicesPage() {
                     {loading ? (
                       <TableRow>
                         <TableCell colSpan={9} className="h-24 text-center">
-                          Loading invoices...
+                          Loading payments...
                         </TableCell>
                       </TableRow>
-                    ) : filteredInvoices.length === 0 ? (
+                    ) : filteredPayments.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
-                          No invoices found matching your filters.
+                          No payments found matching your filters.
                         </TableCell>
                       </TableRow>
                     ) : (
-                      paginatedInvoices.map((invoice) => (
-                        <TableRow key={invoice.id}>
-                          <TableCell className="font-medium">{invoice.invoice_reference}</TableCell>
-                          <TableCell>{invoice.student_full_name}</TableCell>
-                          <TableCell>KSh {parseFloat(invoice.total_amount).toLocaleString()}</TableCell>
-                          <TableCell>KSh {parseFloat(invoice.paid_amount).toLocaleString()}</TableCell>
-                          <TableCell>KSh {parseFloat(invoice.balance).toLocaleString()}</TableCell>
-                          <TableCell>{format(new Date(invoice.created_at), "dd MMM yyyy")}</TableCell>
-                          <TableCell>{invoice.due_date ? format(new Date(invoice.due_date), "dd MMM yyyy") : "—"}</TableCell>
-                          <TableCell>{getStatusBadge(invoice.status)}</TableCell>
+                      paginatedPayments.map((payment) => (
+                        <TableRow key={payment.id}>
+                          <TableCell className="font-medium">{payment.payment_reference}</TableCell>
+                          <TableCell>{payment.student_full_name}</TableCell>
+                          <TableCell className="flex items-center gap-2">
+                            {getMethodIcon(payment.payment_method)}
+                            <span>{payment.payment_method.replace("_", " ")}</span>
+                          </TableCell>
+                          <TableCell>KSh {parseFloat(payment.amount).toLocaleString()}</TableCell>
+                          <TableCell>KSh {parseFloat(payment.unassigned_amount || "0").toLocaleString()}</TableCell>
+                          {/* <TableCell>KSh {parseFloat(payment.available_for_refund || "0").toLocaleString()}</TableCell> */}
+                          <TableCell>{format(new Date(payment.created_at), "dd MMM yyyy")}</TableCell>
+                          <TableCell>{getStatusBadge(payment.status as PaymentStatus)}</TableCell>
                           <TableCell className="text-right">
-                            <Button variant="ghost" size="sm" onClick={() => handleViewInvoice(invoice.id)}>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleViewPayment(payment.student_id!, payment.id)}
+                            >
                               <Eye className="h-4 w-4 mr-1" />
                               View
                             </Button>
@@ -428,19 +440,18 @@ export default function InvoicesPage() {
               </div>
 
               {/* Pagination */}
-              {!loading && filteredInvoices.length > 0 && (
+              {!loading && filteredPayments.length > 0 && (
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6">
                   <div className="text-sm text-muted-foreground">
                     {isShowAll ? (
-                      <>Showing all {filteredInvoices.length} invoices</>
+                      <>Showing all {filteredPayments.length} payments</>
                     ) : (
                       <>
                         Showing {(currentPage - 1) * (pageSize as number) + 1}–
-                        {Math.min(currentPage * (pageSize as number), filteredInvoices.length)} of {filteredInvoices.length} invoices
+                        {Math.min(currentPage * (pageSize as number), filteredPayments.length)} of {filteredPayments.length} payments
                       </>
                     )}
                   </div>
-
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-muted-foreground">Rows per page</span>
@@ -460,7 +471,6 @@ export default function InvoicesPage() {
                         </SelectContent>
                       </Select>
                     </div>
-
                     <div className="flex items-center gap-2">
                       <Button
                         variant="outline"
