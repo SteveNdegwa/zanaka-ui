@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -19,7 +19,9 @@ export default function LoginPage() {
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { toast } = useToast()
   const setUserProfileData = useUserProfileStore((state) => state.setUserProfile)
 
@@ -28,22 +30,39 @@ export default function LoginPage() {
     setIsLoading(true)
 
     try {
-      const payload = {credential: identifier, password: password}
+      const payload = {
+        credential: identifier,
+        password: password,
+      }
+
       const res = await authRequests.login(payload)
+
       if (res.success && res.data) {
+        const next = searchParams.get("next") || "/"
+
+        /**
+         * identity_status === "ACTIVE"
+         *  -> User is fully authenticated, no 2FA required
+         *
+         * identity_status !== "ACTIVE"
+         *  -> 2FA is enabled, OTP verification required
+         */
         if (res.data.identity_status === "ACTIVE") {
           setUserProfileData(res.data.user_profile)
+
           toast.success("Login successful!", {
             description: "You have successfully logged in.",
             duration: 5000,
-          });
-          router.push("/");
+          })
+
+          router.push(next)
         } else {
-          toast.success("OTP required", {
-            description: "An OTP has been sent to your email. Please verify to continue.",
+          toast.success("OTP verification required", {
+            description: "A one-time password has been sent to your email. Please verify to continue.",
             duration: 5000,
-          });
-          router.push("/auth/otp");
+          })
+
+          router.push(next ? `/auth/otp?next=${encodeURIComponent(next)}` : "/auth/otp")
         }
       } else {
         toast.error("Login failed", {
@@ -75,7 +94,9 @@ export default function LoginPage() {
         <Card className="border-border shadow-lg">
           <CardHeader className="space-y-1 text-center">
             <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
-            <CardDescription>Sign in to access your school management portal</CardDescription>
+            <CardDescription>
+              Sign in to access your school management portal
+            </CardDescription>
           </CardHeader>
 
           <CardContent>
@@ -130,7 +151,10 @@ export default function LoginPage() {
 
               {/* Forgot Password */}
               <div className="text-center">
-                <Link href="/auth/forgot-password" className="text-sm text-primary hover:underline">
+                <Link
+                  href="/auth/forgot-password"
+                  className="text-sm text-primary hover:underline"
+                >
                   Forgot your password?
                 </Link>
               </div>

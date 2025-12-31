@@ -30,19 +30,34 @@ import {
   ArrowRightLeft,
   ListChecks,
   Clock,
+  Loader2,
+  Trash2,
 } from "lucide-react"
 import Link from "next/link"
 import { UserProfile, usersRequests } from "@/lib/requests/users"
 import { Invoice, Payment, InvoiceStatus, PaymentStatus, RefundStatus } from "@/lib/requests/finances"
-import { toast } from "@/src/use-toast"
+import { toast, useToast } from "@/src/use-toast"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 export default function ViewStudentPage() {
   const router = useRouter()
   const params = useParams()
   const studentId = params?.id as string
+  const { toast: showToast } = useToast()
 
   const [student, setStudent] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
+  const [deleting, setDeleting] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [allocating, setAllocating] = useState(false)
   const [activeTab, setActiveTab] = useState<"overview" | "invoices" | "payments" | "balance" | "ledger">("overview")
 
@@ -52,33 +67,21 @@ export default function ViewStudentPage() {
 
   useEffect(() => {
     if (!studentId) return
-
     const fetchStudent = async () => {
       setLoading(true)
       const response = await usersRequests.getUser(studentId)
       if (response.success && response.data) {
         setStudent(response.data)
       } else {
-        toast.error("Failed to load student", {
+        showToast.error("Failed to load student", {
           description: response.error || "Unable to fetch student details",
         })
         router.push("/students")
       }
       setLoading(false)
     }
-
     fetchStudent()
   }, [studentId, router])
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p>Loading student profile...</p>
-      </div>
-    )
-  }
-
-  if (!student) return null
 
   const formatGrade = (grade: string) => grade.replace("_", " ").toUpperCase()
 
@@ -159,11 +162,11 @@ export default function ViewStudentPage() {
   const handleAllocatePayments = async () => {
     setAllocating(true)
     try {
-      toast.success("Payment allocation started", {
+      showToast.success("Payment allocation started", {
         description: "Unallocated payments are being processed in the background.",
       })
     } catch (error) {
-      toast.error("Allocation failed", {
+      showToast.error("Allocation failed", {
         description: "Something went wrong. Please try again later.",
       })
     } finally {
@@ -171,38 +174,67 @@ export default function ViewStudentPage() {
     }
   }
 
+  const handleDeleteStudent = async () => {
+    if (!student) return
+
+    setDeleting(true)
+    try {
+      const res = await usersRequests.deleteUser(studentId)
+      if (res.success) {
+        showToast.success("Student deleted permanently!", {
+          description: "The student record has been removed.",
+        })
+        router.push("/students")
+      } else {
+        showToast.error("Delete failed", { description: res.error || "Unable to delete student." })
+      }
+    } catch (err) {
+      showToast.error("Delete failed", { description: "Something went wrong. Please try again." })
+    } finally {
+      setDeleting(false)
+      setShowDeleteConfirm(false)
+    }
+  }
+
   // === Financial Calculations ===
-  const activeInvoices = student.invoices?.filter(inv => inv.status !== InvoiceStatus.CANCELLED) || []
+  const activeInvoices = student?.invoices?.filter(inv => inv.status !== InvoiceStatus.CANCELLED) || []
   const totalInvoiced = activeInvoices.reduce((sum, inv) => sum + parseFloat(inv.total_amount), 0)
   const totalAllocatedToInvoices = activeInvoices.reduce((sum, inv) => sum + parseFloat(inv.paid_amount), 0)
 
-  // All payments received except reversed
-  const nonReversedPayments = student.payments?.filter(p => p.status !== PaymentStatus.REVERSED) || []
+  const nonReversedPayments = student?.payments?.filter(p => p.status !== PaymentStatus.REVERSED) || []
   const totalReceived = nonReversedPayments.reduce((sum, p) => sum + parseFloat(p.amount), 0)
 
-  // Refunded amount
-  const totalRefunded = student.payments
+  const totalRefunded = student?.payments
     ?.reduce((sum, p) => sum + parseFloat(p.completed_refunded_amount || "0"), 0) || 0
 
-  // Unallocated from approved (COMPLETED) payments
-  const completedPayments = student.payments?.filter(p => p.status === PaymentStatus.COMPLETED) || []
+  const completedPayments = student?.payments?.filter(p => p.status === PaymentStatus.COMPLETED) || []
   const unallocatedFromApproved = completedPayments.reduce((sum, p) => sum + parseFloat(p.unassigned_amount || "0"), 0)
 
-  // Pending payments
-  const pendingPayments = student.payments?.filter(p => p.status === PaymentStatus.PENDING) || []
+  const pendingPayments = student?.payments?.filter(p => p.status === PaymentStatus.PENDING) || []
   const totalPendingAmount = pendingPayments.reduce((sum, p) => sum + parseFloat(p.amount), 0)
 
   const outstandingBalance = totalInvoiced - totalAllocatedToInvoices
   const hasUnallocatedApproved = unallocatedFromApproved > 0.01
 
   // Filtered data for tabs
-  const filteredInvoices = student.invoices?.filter(inv =>
+  const filteredInvoices = student?.invoices?.filter(inv =>
     invoiceStatusFilter === "all" || inv.status === invoiceStatusFilter
   ) || []
 
-  const filteredPayments = student.payments?.filter(p =>
+  const filteredPayments = student?.payments?.filter(p =>
     paymentStatusFilter === "all" || p.status === paymentStatusFilter
   ) || []
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-3 text-lg">Loading student profile...</span>
+      </div>
+    )
+  }
+
+  if (!student) return null
 
   return (
     <>
@@ -241,9 +273,17 @@ export default function ViewStudentPage() {
                   <Receipt className="w-4 h-4 mr-2" />
                   Create Invoice
                 </Button>
-                <Button onClick={handleEditStudent}>
+                <Button variant="outline" onClick={handleEditStudent}>
                   <Edit className="w-4 h-4 mr-2" />
                   Edit Student
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  disabled={deleting}
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete Student
                 </Button>
               </div>
             </div>
@@ -364,7 +404,7 @@ export default function ViewStudentPage() {
               </Button>
             </div>
 
-            {/* Tab Content */}
+            {/* Overview Tab */}
             {activeTab === "overview" && (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Left Column */}
@@ -803,7 +843,7 @@ export default function ViewStudentPage() {
               </div>
             )}
 
-            {/* Ledger Tab - Now includes cancelled invoices */}
+            {/* Ledger Tab */}
             {activeTab === "ledger" && (
               <Card>
                 <CardHeader>
@@ -820,7 +860,6 @@ export default function ViewStudentPage() {
                       credit: number
                       balance: number
                     }
-
                     const ledger: LedgerItem[] = []
                     let runningBalance = 0
                     const transactions: LedgerItem[] = []
@@ -855,7 +894,6 @@ export default function ViewStudentPage() {
                             credit: 0,
                             balance: 0,
                           })
-
                           // Cancellation entry
                           transactions.push({
                             date: inv.updated_at || inv.created_at,
@@ -976,6 +1014,37 @@ export default function ViewStudentPage() {
                 </CardContent>
               </Card>
             )}
+
+            {/* Delete Student Confirmation Dialog */}
+            <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Permanently Delete Student?</AlertDialogTitle>
+                  <AlertDialogDescription className="space-y-4">
+                    <p>
+                      You are about to <strong>permanently delete</strong> the student{" "}
+                      <strong>{student.full_name}</strong> (Reg: {student.reg_number}).
+                    </p>
+                    <p>
+                      This will remove the student record, all invoices, payments, and financial history.
+                    </p>
+                    <p className="font-bold text-destructive">
+                      This action is irreversible and cannot be undone.
+                    </p>
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleDeleteStudent}
+                    disabled={deleting}
+                    className="bg-destructive hover:bg-destructive/90"
+                  >
+                    {deleting ? "Deleting..." : "Yes, Delete Permanently"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </div>
       </MainContent>

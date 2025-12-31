@@ -37,6 +37,7 @@ import {
   RotateCcw,
   AlertCircle,
   Ban,
+  Loader2,
 } from "lucide-react"
 import Link from "next/link"
 import {
@@ -284,7 +285,8 @@ export default function ViewPaymentPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <p>Loading payment details...</p>
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-3 text-lg">Loading payment details...</span>
       </div>
     )
   }

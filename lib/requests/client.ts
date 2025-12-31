@@ -45,22 +45,29 @@ export class APIClient {
       clearTimeout(timeoutId);
 
       const json = await res.json();
-      if (res.status === 401 || json.success === false && res.status === 401) {
+
+      if (res.status === 401 || json?.success === false && res.status === 401) {
         if (typeof window !== "undefined") {
-          window.location.href = "/auth/";
+          const next = encodeURIComponent(window.location.pathname + window.location.search);
+          window.location.replace(`/auth?next=${next}`);
         }
-        return { success: false, error: "Unauthorized", message: "Redirecting to login" };
+
+        return {
+          success: false,
+          error: "Unauthorized",
+          message: "Redirecting to login",
+        };
       }
 
-    if (!res.ok || json.success === false) {
-      return {
-        success: false,
-        error: json.error || "An error occurred",
-        message: json.message,
-      };
-    }
+      if (!res.ok || json.success === false) {
+        return {
+          success: false,
+          error: json.error || "An error occurred",
+          message: json.message,
+        };
+      }
 
-    return { success: true, data: json.data || json };
+      return { success: true, data: json.data ?? json };
     } catch (err: any) {
       clearTimeout(timeoutId);
       return { success: false, error: err.message || "Network error" };

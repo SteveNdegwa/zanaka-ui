@@ -29,6 +29,7 @@ import {
   User,
   Hash,
   Clock,
+  Loader2,
 } from "lucide-react"
 import Link from "next/link"
 import { financeRequests } from "@/lib/requests/finances"
@@ -100,7 +101,8 @@ export default function ViewInvoicePage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <p className="text-lg">Loading invoice...</p>
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-3 text-lg">Loading invoice...</span>
       </div>
     )
   }

@@ -129,6 +129,7 @@ export interface UpdateUserRequest {
 export interface FilterUsersRequest {
   search?: string;
   role_name?: string;
+  role_names?: string[];
   first_name?: string;
   last_name?: string;
   date_of_birth?: string;

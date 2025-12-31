@@ -12,55 +12,84 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Search, Filter, UserPlus, Eye } from "lucide-react"
+import Link from "next/link"
 import { UserProfile, usersRequests } from "@/lib/requests/users"
 import { Loader2 } from "lucide-react"
 import { useToast } from "@/src/use-toast"
-import { BranchProfile, ClassroomProfile, schoolRequests } from "@/lib/requests/schools"
+import { schoolRequests, BranchProfile } from "@/lib/requests/schools"
 
-export default function StudentsPage() {
+// Role-specific status options (matching Django model)
+const STATUS_OPTIONS: Record<string, { value: string; label: string }[]> = {
+  all: [{ value: "all", label: "All Status" }],
+  ADMIN: [
+    { value: "all", label: "All Status" },
+    { value: "ACTIVE", label: "Active" },
+    { value: "ON_LEAVE", label: "On Leave" },
+    { value: "TERMINATED", label: "Terminated" },
+  ],
+  TEACHER: [
+    { value: "all", label: "All Status" },
+    { value: "ACTIVE", label: "Active" },
+    { value: "ON_LEAVE", label: "On Leave" },
+    { value: "SUSPENDED", label: "Suspended" },
+    { value: "RETIRED", label: "Retired" },
+    { value: "TERMINATED", label: "Terminated" },
+  ],
+  CLERK: [
+    { value: "all", label: "All Status" },
+    { value: "ACTIVE", label: "Active" },
+    { value: "ON_LEAVE", label: "On Leave" },
+    { value: "TERMINATED", label: "Terminated" },
+  ],
+}
+
+export default function StaffListPage() {
   const router = useRouter()
   const { toast } = useToast()
 
-  const [tableLoading, setTableLoading] = useState(true)
-  const [students, setStudents] = useState<UserProfile[]>([])
+  const [loading, setLoading] = useState(true)
+  const [staff, setStaff] = useState<UserProfile[]>([])
   const [branches, setBranches] = useState<BranchProfile[]>([])
-  const [classrooms, setClassrooms] = useState<ClassroomProfile[]>([])
 
   const [searchTerm, setSearchTerm] = useState("")
   const [branchFilter, setBranchFilter] = useState("all")
-  const [gradeFilter, setGradeFilter] = useState("all")
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [classFilter, setClassFilter] = useState("")
+  const [roleFilter, setRoleFilter] = useState<string>("all")
+  const [statusFilter, setStatusFilter] = useState("all") // New status filter
 
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState<number | "all">(10)
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchTerm, branchFilter, gradeFilter, statusFilter, classFilter, pageSize])
+    setStatusFilter("all") // Reset status when role changes
+  }, [searchTerm, branchFilter, roleFilter, pageSize])
 
+  // Fetch staff
   useEffect(() => {
-    const fetchStudents = async () => {
+    const fetchStaff = async () => {
       try {
-        const response = await usersRequests.filterUsers({ role_name: "STUDENT" })
+        const response = await usersRequests.filterUsers({
+          role_names: ["TEACHER", "CLERK", "ADMIN"],
+        })
         if (response.success && response.data) {
-          setStudents(response.data)
+          setStaff(response.data)
         } else {
-          toast.error("Failed to load students", {
-            description: "An error occurred while fetching student records. Please try again.",
+          toast.error("Failed to load staff", {
+            description: "An error occurred while fetching staff records.",
           })
         }
       } catch (error) {
-        toast.error("Filter students failed", {
+        toast.error("Failed to load staff", {
           description: "Something went wrong. Please try again.",
         })
       } finally {
-        setTableLoading(false)
+        setLoading(false)
       }
     }
-    fetchStudents()
-  }, [])
+    fetchStaff()
+  }, [toast])
 
+  // Fetch branches
   useEffect(() => {
     const fetchBranches = async () => {
       try {
@@ -69,71 +98,72 @@ export default function StudentsPage() {
           setBranches(response.data)
         }
       } catch (error) {
-        toast.error("Fetch branches failed", {
-          description: "Something went wrong. Please try again.",
-        })
+        toast.error("Failed to load branches")
       }
     }
     fetchBranches()
-  }, [])
+  }, [toast])
 
-  useEffect(() => {
-    const fetchClassrooms = async () => {
-      try {
-        const response = await schoolRequests.listClassrooms()
-        if (response.success && response.data) {
-          setClassrooms(response.data)
-        }
-      } catch (error) {
-        toast.error("Fetch classrooms failed", {
-          description: "Something went wrong. Please try again.",
-        })
-      }
+  const getRoleBadge = (role: string) => {
+    const config: Record<string, { label: string; variant: "default" | "secondary" | "outline" }> = {
+      ADMIN: { label: "Admin", variant: "default" },
+      TEACHER: { label: "Teacher", variant: "secondary" },
+      CLERK: { label: "Clerk", variant: "outline" },
     }
-    fetchClassrooms()
-  }, [])
+    const cfg = config[role] || { label: role, variant: "outline" }
+    return <Badge variant={cfg.variant}>{cfg.label}</Badge>
+  }
 
-  const formatGrade = (grade: string) => grade.replace("_", " ").toUpperCase()
+  const getStatusBadge = (user: UserProfile) => {
+    const statusLabel = user.status ? user.status.replace("_", " ") : "Active"
+    let variant: "default" | "secondary" | "destructive" = "default"
 
-  const filteredClassrooms = classrooms.filter((classroom) => {
-    return classroom.branch_id === branchFilter && classroom.grade_level === gradeFilter
-  })
+    if (["SUSPENDED", "TERMINATED", "RETIRED"].includes(statusLabel.toUpperCase())) {
+      variant = "destructive"
+    } else if (statusLabel.toUpperCase() === "ON LEAVE") {
+      variant = "secondary"
+    }
 
-  const filteredStudents = students.filter((student) => {
+    return <Badge variant={variant}>{statusLabel}</Badge>
+  }
+
+  const getBranchDisplay = (user: UserProfile) => {
+    if (user.branches.length === 0) {
+      return <span className="text-sm font-medium text-primary">All Branches</span>
+    }
+    return user.branches.length > 0 ? user.branches[0].name : "—"
+  }
+
+  const filteredStaff = staff.filter((user) => {
     const matchesSearch =
-      student.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (student.other_name && student.other_name.toLowerCase().includes(searchTerm.toLowerCase()))
+      user.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.reg_number.toLowerCase().includes(searchTerm.toLowerCase())
 
-    const matchesBranch = branchFilter === "all" || student.branches.some(branch => branch.id === branchFilter)
-    const matchesGrade = gradeFilter === "all" || student.grade_level === gradeFilter
-    const matchesStatus = statusFilter === "all" || student.status.toLowerCase() === statusFilter.toLowerCase()
-    const matchesClass = classFilter === "" || student.classroom_id === classFilter
+    const matchesBranch =
+      branchFilter === "all" ||
+      user.branches.length === 0 ||
+      user.branches.some((b) => b.id === branchFilter)
 
-    return matchesSearch && matchesBranch && matchesGrade && matchesStatus && matchesClass
+    const matchesRole =
+      roleFilter === "all" ||
+      user.role_name === roleFilter
+
+    const matchesStatus =
+      statusFilter === "all" ||
+      user.status === statusFilter
+
+    return matchesSearch && matchesBranch && matchesRole && matchesStatus
   })
 
   const isShowAll = pageSize === "all"
-  const totalPages = isShowAll ? 1 : Math.ceil(filteredStudents.length / pageSize)
-  const paginatedStudents = isShowAll
-    ? filteredStudents
-    : filteredStudents.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+  const totalPages = isShowAll ? 1 : Math.ceil(filteredStaff.length / pageSize)
+  const paginatedStaff = isShowAll
+    ? filteredStaff
+    : filteredStaff.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
-  const getStatusBadge = (status: string) => {
-    const STATUS_CONFIG = {
-      ACTIVE: { label: "Active", variant: "default" },
-      GRADUATED: { label: "Graduated", variant: "outline" },
-      TRANSFERRED: { label: "Transferred", variant: "secondary" },
-      SUSPENDED: { label: "Suspended", variant: "destructive" },
-    } as const
-
-    const config = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG]
-    return (
-      <Badge variant={config?.variant ?? "secondary"}>
-        {config?.label ?? status}
-      </Badge>
-    )
-  }
+  // Get current status options based on selected role
+  const currentStatusOptions = STATUS_OPTIONS[roleFilter] || STATUS_OPTIONS.all
 
   return (
     <div className="min-h-screen bg-background">
@@ -145,12 +175,12 @@ export default function StudentsPage() {
             {/* Header */}
             <div className="flex justify-between items-center mb-6">
               <div>
-                <h1 className="text-3xl font-bold text-foreground">Students</h1>
-                <p className="text-muted-foreground">Manage student records and information</p>
+                <h1 className="text-3xl font-bold text-foreground">Staff</h1>
+                <p className="text-muted-foreground">Manage teachers, clerks, and administrators</p>
               </div>
-              <Button className="bg-primary hover:bg-primary/90" onClick={() => router.push("/students/create")}>
+              <Button className="bg-primary hover:bg-primary/90" onClick={() => router.push("/staff/create")}>
                 <UserPlus className="w-4 h-4 mr-2" />
-                Add Student
+                Add Staff
               </Button>
             </div>
 
@@ -162,20 +192,17 @@ export default function StudentsPage() {
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
                       <Input
-                        placeholder="Search students by name or email..."
+                        placeholder="Search by name, email, or reg number..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="pl-10"
                       />
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Select value={branchFilter} onValueChange={(value) => {
-                      setBranchFilter(value)
-                      setClassFilter("")
-                    }}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select branch" />
+                  <div className="flex gap-2 flex-wrap">
+                    <Select value={branchFilter} onValueChange={setBranchFilter}>
+                      <SelectTrigger className="w-[160px]">
+                        <SelectValue placeholder="All Branches" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All Branches</SelectItem>
@@ -187,63 +214,28 @@ export default function StudentsPage() {
                       </SelectContent>
                     </Select>
 
-                    <Select value={gradeFilter} onValueChange={(value) => {
-                      setGradeFilter(value)
-                      setClassFilter("")
-                    }}>
+                    <Select value={roleFilter} onValueChange={setRoleFilter}>
                       <SelectTrigger className="w-[140px]">
-                        <SelectValue placeholder="Grade" />
+                        <SelectValue placeholder="All Roles" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All Grades</SelectItem>
-                        <SelectItem value="baby_class">Baby Class</SelectItem>
-                        <SelectItem value="pp_1">PP 1</SelectItem>
-                        <SelectItem value="pp_2">PP 2</SelectItem>
-                        <SelectItem value="grade_1">Grade 1</SelectItem>
-                        <SelectItem value="grade_2">Grade 2</SelectItem>
-                        <SelectItem value="grade_3">Grade 3</SelectItem>
-                        <SelectItem value="grade_4">Grade 4</SelectItem>
-                        <SelectItem value="grade_5">Grade 5</SelectItem>
-                        <SelectItem value="grade_6">Grade 6</SelectItem>
-                        <SelectItem value="grade_7">Grade 7</SelectItem>
-                        <SelectItem value="grade_8">Grade 8</SelectItem>
-                        <SelectItem value="grade_9">Grade 9</SelectItem>
-                      </SelectContent>
-                    </Select>
-
-                    <Select
-                      value={classFilter}
-                      onValueChange={setClassFilter}
-                      disabled={branchFilter === "all" || gradeFilter === "all" || filteredClassrooms.length === 0}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={
-                          branchFilter === "all" || gradeFilter === "all"
-                            ? "Select branch & grade first"
-                            : filteredClassrooms.length === 0
-                              ? "No classrooms available"
-                              : "Select classroom"
-                        } />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {filteredClassrooms.map((classroom) => (
-                          <SelectItem key={classroom.id} value={classroom.id}>
-                            {classroom.name}
-                          </SelectItem>
-                        ))}
+                        <SelectItem value="all">All Roles</SelectItem>
+                        <SelectItem value="ADMIN">Admin</SelectItem>
+                        <SelectItem value="TEACHER">Teacher</SelectItem>
+                        <SelectItem value="CLERK">Clerk</SelectItem>
                       </SelectContent>
                     </Select>
 
                     <Select value={statusFilter} onValueChange={setStatusFilter}>
-                      <SelectTrigger className="w-[120px]">
-                        <SelectValue placeholder="Status" />
+                      <SelectTrigger className="w-[160px]">
+                        <SelectValue placeholder="All Status" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All Status</SelectItem>
-                        <SelectItem value="ACTIVE">Active</SelectItem>
-                        <SelectItem value="SUSPENDED">Suspended</SelectItem>
-                        <SelectItem value="GRADUATED">Graduated</SelectItem>
-                        <SelectItem value="TRANSFERRED">Transferred</SelectItem>
+                        {currentStatusOptions.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -251,11 +243,11 @@ export default function StudentsPage() {
               </CardContent>
             </Card>
 
-            {/* Students Table */}
+            {/* Staff Table */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
-                  <span>Students ({filteredStudents.length})</span>
+                  <span>Staff Members ({filteredStaff.length})</span>
                   <Button variant="outline" size="sm">
                     <Filter className="w-4 h-4 mr-2" />
                     Export
@@ -267,59 +259,55 @@ export default function StudentsPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Student</TableHead>
+                        <TableHead>Staff Member</TableHead>
                         <TableHead>Branch</TableHead>
-                        <TableHead>Grade</TableHead>
-                        <TableHead>Class</TableHead>
+                        <TableHead>Role</TableHead>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Phone</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {tableLoading ? (
+                      {loading ? (
                         <TableRow>
-                          <TableCell colSpan={6} className="py-10 text-center">
+                          <TableCell colSpan={7} className="py-10 text-center">
                             <div className="flex justify-center">
                               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                             </div>
                           </TableCell>
                         </TableRow>
-                      ) : filteredStudents.length > 0 ? (
-                        paginatedStudents.map((student) => (
-                          <TableRow key={student.id}>
+                      ) : filteredStaff.length > 0 ? (
+                        paginatedStaff.map((member) => (
+                          <TableRow key={member.id}>
                             <TableCell>
                               <div className="flex items-center space-x-3">
                                 <Avatar className="h-8 w-8">
                                   <AvatarFallback>
-                                    {student.full_name
+                                    {member.full_name
                                       .split(" ")
                                       .map((n) => n[0])
                                       .join("")}
                                   </AvatarFallback>
                                 </Avatar>
                                 <div>
-                                  <div className="font-medium">{student.full_name}</div>
-                                  <div className="text-sm text-muted-foreground">Reg: {student.reg_number}</div>
+                                  <div className="font-medium">{member.full_name}</div>
+                                  <div className="text-sm text-muted-foreground">
+                                    Reg: {member.reg_number}
+                                  </div>
                                 </div>
                               </div>
                             </TableCell>
-                            <TableCell>
-                              <div className="font-medium">{student.branches[0]?.name || "—"}</div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="font-medium">{formatGrade(student.grade_level!)}</div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="font-medium">{student.classroom_name || "—"}</div>
-                            </TableCell>
-                            <TableCell>
-                              {getStatusBadge(student.status)}
-                            </TableCell>
+                            <TableCell>{getBranchDisplay(member)}</TableCell>
+                            <TableCell>{getRoleBadge(member.role_name)}</TableCell>
+                            <TableCell>{member.email || "—"}</TableCell>
+                            <TableCell>{member.phone_number || "—"}</TableCell>
+                            <TableCell>{getStatusBadge(member)}</TableCell>
                             <TableCell className="text-right">
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => router.push(`/students/${student.id}`)}
+                                onClick={() => router.push(`/staff/${member.id}`)}
                               >
                                 <Eye className="w-4 h-4 mr-2" />
                                 View
@@ -329,8 +317,8 @@ export default function StudentsPage() {
                         ))
                       ) : (
                         <TableRow>
-                          <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
-                            No students found matching your criteria.
+                          <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                            No staff members found matching your criteria.
                           </TableCell>
                         </TableRow>
                       )}
@@ -341,13 +329,13 @@ export default function StudentsPage() {
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mt-4">
                     <div className="text-sm text-muted-foreground">
                       {pageSize === "all" ? (
-                        <>Showing all {filteredStudents.length} students</>
+                        <>Showing all {filteredStaff.length} staff members</>
                       ) : (
                         <>
                           Showing{" "}
-                          {Math.min((currentPage - 1) * pageSize + 1, filteredStudents.length)}–
-                          {Math.min(currentPage * pageSize, filteredStudents.length)} of{" "}
-                          {filteredStudents.length} students
+                          {Math.min((currentPage - 1) * pageSize + 1, filteredStaff.length)}–
+                          {Math.min(currentPage * pageSize, filteredStaff.length)} of{" "}
+                          {filteredStaff.length} staff members
                         </>
                       )}
                     </div>

@@ -43,7 +43,7 @@ export default function InvoicesPage() {
   const [pageSize, setPageSize] = useState<number | "all">(10)
 
   // Minimizable filters
-  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(true)
 
   // Unique fee items
   const feeItems = Array.from(new Set(allInvoices.flatMap(inv => inv.invoice_items.map(item => item.description))))

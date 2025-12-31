@@ -23,14 +23,16 @@ import {
   Receipt,
   CreditCard,
   Files,
+  UserCheck,
 } from "lucide-react"
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
-  { name: "Students", href: "/students", icon: Users },
-  { name: "Teachers", href: "/teachers", icon: GraduationCap },
-  { name: "Classes", href: "/classes", icon: BookOpen },
+  { name: "Students", href: "/students", icon: GraduationCap },
+  { name: "Staff", href: "/staff", icon: Users },
+  { name: "Classes", href: "/classrooms", icon: BookOpen },
   { name: "Branches", href: "/branches", icon: Building },
+  { name: "Fee Items", href: "/finance/fee-items", icon: DollarSign },
   { name: "Invoices", href: "/finance/invoices", icon: FileText },
   { name: "Bulk Invoices", href: "/finance/bulk-invoices/", icon: Files },
   { name: "Payments", href: "/finance/payments", icon: CreditCard },

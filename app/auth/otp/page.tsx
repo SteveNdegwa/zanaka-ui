@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState, useRef, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
@@ -20,6 +20,7 @@ export default function OTPPage() {
   const [canResend, setCanResend] = useState(false)
   const inputRefs = useRef<(HTMLInputElement | null)[]>([])
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { toast } = useToast()
   const setUserProfileData = useUserProfileStore((state) => state.setUserProfile)
 
@@ -59,7 +60,6 @@ export default function OTPPage() {
     const newOtp = pastedData.split("").concat(Array(4).fill("")).slice(0, 4)
     setOtp(newOtp)
 
-    // Focus the last filled input or the next empty one
     const lastFilledIndex = newOtp.findIndex((digit) => !digit)
     const focusIndex = lastFilledIndex === -1 ? 3 : Math.max(0, lastFilledIndex - 1)
     inputRefs.current[focusIndex]?.focus()
@@ -68,28 +68,30 @@ export default function OTPPage() {
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (otp.some((digit) => !digit)) {
-      return
-    }
+    if (otp.some((digit) => !digit)) return
 
     setIsLoading(true)
 
-    try {      
-      let payload = {code: otp.join("")}
+    try {
+      const payload = { code: otp.join("") }
       const res = await authRequests.verifyLoginOTP(payload)
+
       if (res.success && res.data) {
-        const userProfile = res.data.user_profile;
+        const userProfile = res.data.user_profile
         setUserProfileData(userProfile)
-        console.log(userProfile)
+
         toast.success("Login successful!", {
           description: "OTP verified successfully.",
           duration: 5000,
         })
+
+        const next = searchParams.get("next") || "/"
         const needsPasswordReset = userProfile?.force_pass_reset
+
         if (needsPasswordReset) {
           router.push("/auth/update-password")
         } else {
-          router.push("/")
+          router.push(next)
         }
       } else {
         toast.error("OTP verification error!", {
@@ -108,18 +110,18 @@ export default function OTPPage() {
   const handleResendCode = async () => {
     setResendLoading(true)
 
-    try {      
+    try {
       const res = await authRequests.resendLoginOTP()
       if (res.success) {
-         toast.success("OTP Sent", {
+        toast.success("OTP Sent", {
           description: "A new OTP has been sent to your email. Please check and verify.",
           duration: 5000,
-        });
+        })
       } else {
         toast.error("Failed to Resend OTP", {
           description: res.error || "We couldn't send a new OTP. Please try again.",
           duration: 5000,
-        });
+        })
       }
     } catch (err) {
       toast.error("Failed to Resend OTP", {
@@ -163,7 +165,7 @@ export default function OTPPage() {
                 {otp.map((digit, index) => (
                   <input
                     key={index}
-                    ref={(el) => {inputRefs.current[index] = el;}}
+                    ref={(el) => { inputRefs.current[index] = el }}
                     type="text"
                     inputMode="numeric"
                     pattern="[0-9]"

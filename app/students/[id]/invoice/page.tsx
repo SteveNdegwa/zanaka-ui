@@ -77,8 +77,8 @@ const GRADE_LEVELS = [
   "grade_4", "grade_5", "grade_6", "grade_7", "grade_8", "grade_9"
 ]
 
-const CURRENT_YEAR = new Date().getFullYear()
-const ACADEMIC_YEARS = [`${CURRENT_YEAR}`, `${CURRENT_YEAR + 1}`]
+const currentYear = new Date().getFullYear()
+const ACADEMIC_YEARS = Array.from({ length: 11 }, (_, i) => (currentYear - 5 + i).toString())
 
 export default function CreateInvoicePage() {
   const router = useRouter()

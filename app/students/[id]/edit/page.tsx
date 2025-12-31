@@ -25,6 +25,7 @@ import {
   X,
   Plus,
   Search,
+  Loader2,
 } from "lucide-react"
 import Link from "next/link"
 import { BranchProfile, ClassroomProfile, schoolRequests } from "@/lib/requests/schools"
@@ -491,7 +492,8 @@ export default function UpdateStudentPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <p>Loading student profile...</p>
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-3 text-lg">Loading student profile...</span>
       </div>
     )
   }

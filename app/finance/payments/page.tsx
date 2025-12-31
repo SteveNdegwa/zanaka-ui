@@ -42,7 +42,7 @@ export default function PaymentsPage() {
   const [pageSize, setPageSize] = useState<number | "all">(10)
 
   // Minimizable filters
-  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(true)
 
   // Fetch payments
   useEffect(() => {

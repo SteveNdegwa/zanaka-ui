@@ -34,11 +34,45 @@ export enum RefundStatus {
   CANCELLED = "CANCELLED",
 }
 
+// === Fee Item Enums ===
+export enum FeeItemCategory {
+  TUITION = "TUITION",
+  BOARDING = "BOARDING",
+  TRANSPORT = "TRANSPORT",
+  MEALS = "MEALS",
+  UNIFORM = "UNIFORM",
+  ACTIVITY = "ACTIVITY",
+  MEDICAL = "MEDICAL",
+  EXAM = "EXAM",
+  OTHER = "OTHER",
+}
+
+export enum GradeLevel {
+  BABY_CLASS = "baby_class",
+  PP_1 = "pp_1",
+  PP_2 = "pp_2",
+  GRADE_1 = "grade_1",
+  GRADE_2 = "grade_2",
+  GRADE_3 = "grade_3",
+  GRADE_4 = "grade_4",
+  GRADE_5 = "grade_5",
+  GRADE_6 = "grade_6",
+  GRADE_7 = "grade_7",
+  GRADE_8 = "grade_8",
+  GRADE_9 = "grade_9",
+}
+
+export enum Term {
+  TERM_1 = "TERM_1",
+  TERM_2 = "TERM_2",
+  TERM_3 = "TERM_3",
+}
+
 // Fee Structures
 export interface GradeLevelFee {
   id: string;
-  grade_level: string;
-  term: string;
+  grade_level: GradeLevel;
+  term: Term;
   academic_year: string;
   amount: string;
   is_mandatory: boolean;
@@ -50,7 +84,7 @@ export interface FeeItem {
   school_name: string;
   name: string;
   default_amount: string;
-  category: string;
+  category: FeeItemCategory;
   description: string;
   is_active: boolean;
   applies_to_all_branches: boolean;
@@ -352,11 +386,98 @@ export interface ApprovePaymentResponse {
   id: string;
 }
 
+// === Fee Item Request Types ===
+export interface CreateFeeItemRequest {
+  name: string;
+  default_amount: number;
+  category: FeeItemCategory;
+  description?: string;
+  is_active?: boolean;
+  branch_ids?: string[];
+}
+
+export interface CreateFeeItemResponse {
+  id: string;
+}
+
+export interface UpdateFeeItemRequest {
+  name?: string;
+  default_amount?: number;
+  category?: FeeItemCategory;
+  description?: string;
+  is_active?: boolean;
+  branch_ids?: string[];
+}
+
+export interface CreateGradeLevelFeeRequest {
+  grade_level: GradeLevel;
+  term: Term;
+  academic_year: string;
+  amount: number;
+  is_mandatory?: boolean;
+}
+
+export interface CreateGradeLevelFeeResponse {
+  id: string;
+}
+
+export interface UpdateGradeLevelFeeRequest {
+  grade_level?: GradeLevel;
+  term?: Term;
+  academic_year?: string;
+  amount?: number;
+  is_mandatory?: boolean;
+}
+
 // Finance API Requests
 export const financeRequests = {
   // === Fee Items ===
-  listFeeItems: async (): Promise<APIResponse<FeeItem[]>> => {
-    return apiClient.post<FeeItem[]>("/finances/fee-items/");
+  listFeeItems: async (filters?: Record<string, any>): Promise<APIResponse<FeeItem[]>> => {
+    return apiClient.post<FeeItem[]>("/finances/fee-items/", filters || {});
+  },
+
+  createFeeItem: async (data: CreateFeeItemRequest): Promise<APIResponse<CreateFeeItemResponse>> => {
+    return apiClient.post<CreateFeeItemResponse>("/finances/fee-items/create/", data);
+  },
+
+  viewFeeItem: async (feeItemId: string): Promise<APIResponse<FeeItem>> => {
+    return apiClient.get<FeeItem>(`/finances/fee-items/${feeItemId}/`);
+  },
+
+  updateFeeItem: async (
+    feeItemId: string,
+    data: UpdateFeeItemRequest
+  ): Promise<APIResponse<void>> => {
+    return apiClient.post<void>(`/finances/fee-items/${feeItemId}/update/`, data);
+  },
+
+  deactivateFeeItem: async (feeItemId: string): Promise<APIResponse<void>> => {
+    return apiClient.post<void>(`/finances/fee-items/${feeItemId}/deactivate/`);
+  },
+
+  activateFeeItem: async (feeItemId: string): Promise<APIResponse<void>> => {
+    return apiClient.post<void>(`/finances/fee-items/${feeItemId}/activate/`);
+  },
+
+  createGradeLevelFee: async (
+    feeItemId: string,
+    data: CreateGradeLevelFeeRequest
+  ): Promise<APIResponse<CreateGradeLevelFeeResponse>> => {
+    return apiClient.post<CreateGradeLevelFeeResponse>(
+      `/finances/fee-items/${feeItemId}/grade-level-fees/create/`,
+      data
+    );
+  },
+
+  updateGradeLevelFee: async (
+    gradeLevelFeeId: string,
+    data: UpdateGradeLevelFeeRequest
+  ): Promise<APIResponse<void>> => {
+    return apiClient.post<void>(`/finances/grade-level-fees/${gradeLevelFeeId}/update/`, data);
+  },
+
+  deleteGradeLevelFee: async (gradeLevelFeeId: string): Promise<APIResponse<void>> => {
+    return apiClient.post<void>(`/finances/grade-level-fees/${gradeLevelFeeId}/delete/`);
   },
 
   // === Single Invoice ===
@@ -369,12 +490,15 @@ export const financeRequests = {
       data
     );
   },
+
   viewInvoice: async (invoiceId: string): Promise<APIResponse<Invoice>> => {
     return apiClient.get<Invoice>(`/finances/invoices/${invoiceId}/`);
   },
+
   cancelInvoice: async (invoiceId: string): Promise<APIResponse<void>> => {
     return apiClient.post<void>(`/finances/invoices/${invoiceId}/cancel/`);
   },
+
   listInvoices: async (filters?: Record<string, any>): Promise<APIResponse<Invoice[]>> => {
     return apiClient.post<Invoice[]>("/finances/invoices/", filters || {});
   },
@@ -385,12 +509,15 @@ export const financeRequests = {
   ): Promise<APIResponse<BulkCreateInvoiceResponse>> => {
     return apiClient.post<BulkCreateInvoiceResponse>("/finances/bulk-invoices/create/", data);
   },
+
   listBulkInvoices: async (filters?: Record<string, any>): Promise<APIResponse<BulkInvoiceSummary[]>> => {
     return apiClient.post<BulkInvoiceSummary[]>("/finances/bulk-invoices/", filters || {});
   },
+
   viewBulkInvoice: async (bulkInvoiceId: string): Promise<APIResponse<BulkInvoiceDetail>> => {
     return apiClient.get<BulkInvoiceDetail>(`/finances/bulk-invoices/${bulkInvoiceId}/`);
   },
+
   bulkCancelInvoices: async (
     bulkInvoiceId: string,
     data?: { reason?: string }
@@ -408,18 +535,23 @@ export const financeRequests = {
       data
     );
   },
+
   viewPayment: async (paymentId: string): Promise<APIResponse<Payment>> => {
     return apiClient.get<Payment>(`/finances/payments/${paymentId}/`);
   },
+
   listPayments: async (filters?: Record<string, any>): Promise<APIResponse<Payment[]>> => {
     return apiClient.post<Payment[]>("/finances/payments/", filters || {});
   },
+
   reversePayment: async (paymentId: string, data: { reason: string }): Promise<APIResponse<void>> => {
     return apiClient.post<void>(`/finances/payments/${paymentId}/reverse/`, data);
   },
+
   approvePayment: async (paymentId: string): Promise<APIResponse<ApprovePaymentResponse>> => {
     return apiClient.post<ApprovePaymentResponse>(`/finances/payments/${paymentId}/approve/`);
   },
+
   createRefund: async (
     paymentId: string,
     data: CreateRefundRequest
@@ -429,13 +561,11 @@ export const financeRequests = {
       data
     );
   },
+
   cancelRefund: async (
     refundId: string,
     data: { reason: string }
   ): Promise<APIResponse<void>> => {
-    return apiClient.post<void>(
-      `/finances/refunds/${refundId}/cancel/`,
-      data
-    );
+    return apiClient.post<void>(`/finances/refunds/${refundId}/cancel/`, data);
   },
 };

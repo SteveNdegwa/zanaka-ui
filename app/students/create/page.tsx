@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
-import { ArrowLeft, Upload, User, Phone, GraduationCap, Users, FileText, Save, X, Plus, Search } from "lucide-react"
+import { ArrowLeft, Upload, User, Phone, GraduationCap, Users, FileText, Save, X, Plus, Search, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { BranchProfile, ClassroomProfile, schoolRequests } from "@/lib/requests/schools"
 import { useToast } from "@/src/use-toast"
@@ -32,6 +32,9 @@ const counties = [
   "Siaya", "Taita-Taveta", "Tana River", "Tharaka-Nithi", "Trans-Nzoia",
   "Turkana", "Uasin Gishu", "Vihiga", "Wajir", "West Pokot"
 ].sort()
+
+const currentYear = new Date().getFullYear()
+const ACADEMIC_YEARS = Array.from({ length: 11 }, (_, i) => (currentYear - 5 + i).toString())
 
 interface Guardian {
   id: string
@@ -119,9 +122,6 @@ export default function CreateStudentPage() {
   const [profilePhoto, setProfilePhoto] = useState<File | null>(null)
   const [profilePreview, setProfilePreview] = useState<string | null>(null)
 
-  const currentYear = new Date().getFullYear()
-  const academicYears = [`${currentYear}`, `${currentYear + 1}`]
-
   // Validation logic
   const isActiveStudent = enrollmentStatus === "active"
 
@@ -204,7 +204,8 @@ export default function CreateStudentPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <p className="text-lg">Loading...</p>
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-3 text-lg">Loading...</span>
       </div>
     )
   }
@@ -615,7 +616,7 @@ export default function CreateStudentPage() {
                           <SelectValue placeholder="Select academic year" />
                         </SelectTrigger>
                         <SelectContent>
-                          {academicYears.map((year) => (
+                          {ACADEMIC_YEARS.map((year) => (
                             <SelectItem key={year} value={year}>
                               {year}
                             </SelectItem>
