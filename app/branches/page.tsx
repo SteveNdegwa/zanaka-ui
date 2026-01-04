@@ -146,7 +146,7 @@ export default function BranchesListPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Branch</TableHead>
-                        <TableHead>School</TableHead>
+                        {/* <TableHead>School</TableHead> */}
                         <TableHead>Location</TableHead>
                         <TableHead>Contact</TableHead>
                         <TableHead>Principal</TableHead>
@@ -179,12 +179,12 @@ export default function BranchesListPage() {
                                 {branch.name}
                               </div>
                             </TableCell>
-                            <TableCell>
+                            {/* <TableCell>
                               <div className="flex items-center gap-2">
                                 <School className="w-4 h-4 text-muted-foreground" />
                                 {branch.school_name}
                               </div>
-                            </TableCell>
+                            </TableCell> */}
                             <TableCell>
                               {branch.location ? (
                                 <div className="flex items-center gap-2">

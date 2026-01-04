@@ -45,8 +45,7 @@ import {
   PaymentStatus,
   PaymentMethod,
   RefundStatus,
-  financeRequests,
-  CreateRefundRequest,
+  financeRequests
 } from "@/lib/requests/finances"
 import { toast } from "@/src/use-toast"
 
@@ -68,7 +67,7 @@ export default function ViewPaymentPage() {
   const [cancellationReason, setCancellationReason] = useState("")
 
   const [reverseReason, setReverseReason] = useState("")
-  const [refundForm, setRefundForm] = useState<CreateRefundRequest>({
+  const [refundForm, setRefundForm] = useState<Record<string, any>>({
     amount: 0,
     refund_method: PaymentMethod.MPESA,
   })
@@ -85,7 +84,7 @@ export default function ViewPaymentPage() {
         toast.error("Failed to load payment", {
           description: response.error || "Unable to fetch payment details",
         })
-        router.push(`/finances/payments`)
+        router.push(`/finance/payments`)
       }
       setLoading(false)
     }
@@ -326,7 +325,7 @@ export default function ViewPaymentPage() {
       <MainContent>
         <div className="container mx-auto px-6 py-8 max-w-7xl">
           <div className="mb-8">
-            <Link href={`/finances/payments`}>
+            <Link href={`/finance/payments`}>
               <Button variant="ghost" size="sm">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Back to Payments

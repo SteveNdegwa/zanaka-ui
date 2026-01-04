@@ -155,8 +155,8 @@ export default function PaymentsPage() {
     return <Badge variant={cfg.variant}>{cfg.label}</Badge>
   }
 
-  const handleViewPayment = (studentId: string, paymentId: string) => {
-    router.push(`/students/${studentId}/payments/${paymentId}`)
+  const handleViewPayment = (paymentId: string) => {
+    router.push(`/finance/payments/${paymentId}`)
   }
 
   return (
@@ -426,7 +426,7 @@ export default function PaymentsPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleViewPayment(payment.student_id!, payment.id)}
+                              onClick={() => handleViewPayment(payment.id!)}
                             >
                               <Eye className="h-4 w-4 mr-1" />
                               View

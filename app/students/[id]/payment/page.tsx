@@ -119,7 +119,7 @@ export default function CreatePaymentPage() {
       payment_method: paymentMethod,
       amount: parseFloat(amount),
       notes: notes || undefined,
-      priority_invoice_id: priorityInvoiceId || null,
+      priority_invoice_id: priorityInvoiceId === 'none' ? undefined : priorityInvoiceId,
     }
 
     if (paymentMethod === PaymentMethod.MPESA) {
