@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -150,72 +150,77 @@ export default function OTPPage() {
           <ThemeToggle />
         </div>
 
-        {/* OTP Verification Card */}
-        <Card className="border-border shadow-lg">
-          <CardHeader className="space-y-1 text-center">
-            <CardTitle className="text-2xl font-bold">Verify Your Identity</CardTitle>
-            <CardDescription>
-              Enter the 4-digit verification code sent to your registered contact method
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleVerifyOtp} className="space-y-6">
-              {/* OTP Input Fields */}
-              <div className="flex justify-center gap-3">
-                {otp.map((digit, index) => (
-                  <input
-                    key={index}
-                    ref={(el) => { inputRefs.current[index] = el }}
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]"
-                    maxLength={1}
-                    value={digit}
-                    onChange={(e) => handleOtpChange(index, e.target.value)}
-                    onKeyDown={(e) => handleKeyDown(index, e)}
-                    onPaste={handlePaste}
-                    className="w-14 h-14 text-center text-2xl font-bold border-2 border-border rounded-lg bg-input focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
-                    disabled={isLoading}
-                  />
-                ))}
+        <Suspense fallback={
+          <div className="text-center py-10">Loading verification form...</div>
+        }>
+
+          {/* OTP Verification Card */}
+          <Card className="border-border shadow-lg">
+            <CardHeader className="space-y-1 text-center">
+              <CardTitle className="text-2xl font-bold">Verify Your Identity</CardTitle>
+              <CardDescription>
+                Enter the 4-digit verification code sent to your registered contact method
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleVerifyOtp} className="space-y-6">
+                {/* OTP Input Fields */}
+                <div className="flex justify-center gap-3">
+                  {otp.map((digit, index) => (
+                    <input
+                      key={index}
+                      ref={(el) => { inputRefs.current[index] = el }}
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]"
+                      maxLength={1}
+                      value={digit}
+                      onChange={(e) => handleOtpChange(index, e.target.value)}
+                      onKeyDown={(e) => handleKeyDown(index, e)}
+                      onPaste={handlePaste}
+                      className="w-14 h-14 text-center text-2xl font-bold border-2 border-border rounded-lg bg-input focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
+                      disabled={isLoading}
+                    />
+                  ))}
+                </div>
+
+                {/* Verify Button */}
+                <Button type="submit" className="w-full" disabled={!isOtpComplete || isLoading}>
+                  {isLoading ? "Verifying..." : "Verify Code"}
+                </Button>
+
+                {/* Resend Code */}
+                <div className="text-center space-y-2">
+                  <p className="text-sm text-muted-foreground">{"Didn't receive the code?"}</p>
+                  {canResend ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={handleResendCode}
+                      disabled={resendLoading}
+                      className="text-primary hover:text-primary/80"
+                    >
+                      {resendLoading ? "Sending..." : "Resend Code"}
+                    </Button>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Resend code in {resendTimer}s</p>
+                  )}
+                </div>
+              </form>
+
+              {/* Back to Login */}
+              <div className="mt-6 text-center">
+                <Link
+                  href="/auth"
+                  className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Back to Login
+                </Link>
               </div>
-
-              {/* Verify Button */}
-              <Button type="submit" className="w-full" disabled={!isOtpComplete || isLoading}>
-                {isLoading ? "Verifying..." : "Verify Code"}
-              </Button>
-
-              {/* Resend Code */}
-              <div className="text-center space-y-2">
-                <p className="text-sm text-muted-foreground">{"Didn't receive the code?"}</p>
-                {canResend ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={handleResendCode}
-                    disabled={resendLoading}
-                    className="text-primary hover:text-primary/80"
-                  >
-                    {resendLoading ? "Sending..." : "Resend Code"}
-                  </Button>
-                ) : (
-                  <p className="text-sm text-muted-foreground">Resend code in {resendTimer}s</p>
-                )}
-              </div>
-            </form>
-
-            {/* Back to Login */}
-            <div className="mt-6 text-center">
-              <Link
-                href="/auth"
-                className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Back to Login
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </Suspense>
 
         {/* Footer */}
         <div className="text-center text-sm text-muted-foreground">

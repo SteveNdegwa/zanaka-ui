@@ -13,6 +13,7 @@ import Link from "next/link"
 import { authRequests } from "@/lib/requests/auth"
 import { useUserProfileStore } from "@/store/store"
 import { useToast } from "@/src/use-toast"
+import { Suspense } from 'react';
 
 export default function LoginPage() {
   const [identifier, setIdentifier] = useState("")
@@ -90,78 +91,82 @@ export default function LoginPage() {
           <ThemeToggle />
         </div>
 
-        {/* Login Card */}
-        <Card className="border-border shadow-lg">
-          <CardHeader className="space-y-1 text-center">
-            <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
-            <CardDescription>
-              Sign in to access your school management portal
-            </CardDescription>
-          </CardHeader>
+        <Suspense fallback={
+          <div className="text-center">Loading authentication form...</div>
+        }>
 
-          <CardContent>
-            <form onSubmit={handleLogin} className="space-y-4">
-              {/* Identifier */}
-              <div className="space-y-2">
-                <Label htmlFor="identifier">Username / Registration Number</Label>
-                <Input
-                  id="identifier"
-                  type="text"
-                  placeholder="Enter username or registration number"
-                  value={identifier}
-                  onChange={(e) => setIdentifier(e.target.value)}
-                  required
-                  className="bg-input"
-                />
-              </div>
+          {/* Login Card */}
+          <Card className="border-border shadow-lg">
+            <CardHeader className="space-y-1 text-center">
+              <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
+              <CardDescription>
+                Sign in to access your school management portal
+              </CardDescription>
+            </CardHeader>
 
-              {/* Password */}
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <div className="relative">
+            <CardContent>
+              <form onSubmit={handleLogin} className="space-y-4">
+                {/* Identifier */}
+                <div className="space-y-2">
+                  <Label htmlFor="identifier">Username / Registration Number</Label>
                   <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Enter your password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    id="identifier"
+                    type="text"
+                    placeholder="Enter username or registration number"
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
                     required
-                    className="bg-input pr-10"
+                    className="bg-input"
                   />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4 text-muted-foreground" />
-                    ) : (
-                      <Eye className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </Button>
                 </div>
-              </div>
 
-              {/* Login Button */}
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Signing in..." : "Sign In"}
-              </Button>
+                {/* Password */}
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Enter your password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      className="bg-input pr-10"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <Eye className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
 
-              {/* Forgot Password */}
-              <div className="text-center">
-                <Link
-                  href="/auth/forgot-password"
-                  className="text-sm text-primary hover:underline"
-                >
-                  Forgot your password?
-                </Link>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
+                {/* Login Button */}
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? "Signing in..." : "Sign In"}
+                </Button>
 
+                {/* Forgot Password */}
+                <div className="text-center">
+                  <Link
+                    href="/auth/forgot-password"
+                    className="text-sm text-primary hover:underline"
+                  >
+                    Forgot your password?
+                  </Link>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </Suspense>
         {/* Footer */}
         <div className="text-center text-sm text-muted-foreground">
           <p>© 2024 EduPortal. All rights reserved.</p>
