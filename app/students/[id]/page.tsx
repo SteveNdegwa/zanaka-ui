@@ -35,7 +35,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { UserProfile, usersRequests } from "@/lib/requests/users"
-import { Invoice, Payment, InvoiceStatus, PaymentStatus, RefundStatus } from "@/lib/requests/finances"
+import { Invoice, Payment, InvoiceStatus, PaymentStatus, RefundStatus, financeRequests } from "@/lib/requests/finances"
 import { toast, useToast } from "@/src/use-toast"
 import {
   AlertDialog,
@@ -65,6 +65,9 @@ export default function ViewStudentPage() {
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<string>("all")
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>("all")
 
+  const [refreshCounter, setRefreshCounter] = useState(0)
+
+
   useEffect(() => {
     if (!studentId) return
     const fetchStudent = async () => {
@@ -81,7 +84,7 @@ export default function ViewStudentPage() {
       setLoading(false)
     }
     fetchStudent()
-  }, [studentId, router])
+  }, [studentId, router, refreshCounter])
 
   const formatGrade = (grade: string) => grade.replace("_", " ").toUpperCase()
 
@@ -162,9 +165,16 @@ export default function ViewStudentPage() {
   const handleAllocatePayments = async () => {
     setAllocating(true)
     try {
-      showToast.success("Payment allocation started", {
-        description: "Unallocated payments are being processed in the background.",
-      })
+      const response = await financeRequests.allocatePayments(studentId)
+      if (response.success){
+        showToast.success("Payment allocation started", {
+          description: "Unallocated payments are being processed in the background.",
+        })
+        setRefreshCounter(prev => prev + 1)
+      }
+      else{
+        showToast.error("Allocation failed", { description: response.error })
+      }
     } catch (error) {
       showToast.error("Allocation failed", {
         description: "Something went wrong. Please try again later.",

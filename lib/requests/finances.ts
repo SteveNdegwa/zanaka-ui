@@ -913,6 +913,10 @@ export const financeRequests = {
     return apiClient.post<void>(`/finances/payments/${paymentId}/reverse/`, data)
   },
 
+  allocatePayments: async (studentId: string): Promise<APIResponse<void>> => {
+    return apiClient.post<void>(`/finances/students/${studentId}/payments/allocate/`)
+  },
+
   createRefund: async (paymentId: string, data: any): Promise<APIResponse<{ id: string }>> => {
     return apiClient.post<{ id: string }>(`/finances/payments/${paymentId}/refunds/create/`, data)
   },

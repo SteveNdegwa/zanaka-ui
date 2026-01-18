@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  zanaka-ui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: stevendegwa/zanaka-ui:${DOCKER_IMAGE_TAG}
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      BASE_BACKEND_URL: https://api.mchangohub.com/api/v1
+      BACKEND_API_KEY: ${BACKEND_API_KEY}
+      ENCRYPT_TO_BACKEND: 0
+      BACKEND_PUBLIC_KEY: ${BACKEND_PUBLIC_KEY}
+      BACKEND_PRIVATE_KEY: ${BACKEND_PRIVATE_KEY}
+    restart: unless-stopped
