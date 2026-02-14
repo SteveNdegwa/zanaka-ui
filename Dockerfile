@@ -28,7 +28,7 @@ COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/.next ./.next
 
 # Optional public folder (only copy if it exists – avoids error if missing)
-COPY --from=builder /app/public ./public  # safe even if empty/missing
+COPY --from=builder /app/public ./public
 
 # ─────────────────────────────────────────────────────
 # Only copy next.config.* if your project actually has one
