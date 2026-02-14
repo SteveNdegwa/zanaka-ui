@@ -3,6 +3,7 @@ version: "3.9"
 services:
   zanaka-ui:
     image: ${IMAGE_TAG}
+    container_name: zanaka_ui_prod
     # build:
     #   context: .
     #   dockerfile: Dockerfile
