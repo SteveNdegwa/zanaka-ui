@@ -8,7 +8,7 @@ services:
     #   context: .
     #   dockerfile: Dockerfile
     ports:
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:3004:3000"
     environment:
       NODE_ENV: production
       BASE_BACKEND_URL: https://api.stmarysacademy.sc.ke/api/v1
