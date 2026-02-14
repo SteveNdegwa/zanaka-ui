@@ -13,9 +13,9 @@ import Link from "next/link"
 import { authRequests } from "@/lib/requests/auth"
 import { useUserProfileStore } from "@/store/store"
 import { useToast } from "@/src/use-toast"
-import { Suspense } from 'react';
+import { Suspense } from "react"
 
-export default function LoginPage() {
+function LoginContent() {
   const [identifier, setIdentifier] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
@@ -41,29 +41,22 @@ export default function LoginPage() {
       if (res.success && res.data) {
         const next = searchParams.get("next") || "/"
 
-        /**
-         * identity_status === "ACTIVE"
-         *  -> User is fully authenticated, no 2FA required
-         *
-         * identity_status !== "ACTIVE"
-         *  -> 2FA is enabled, OTP verification required
-         */
         if (res.data.identity_status === "ACTIVE") {
           setUserProfileData(res.data.user_profile)
-
           toast.success("Login successful!", {
             description: "You have successfully logged in.",
             duration: 5000,
           })
-
           router.push(next)
         } else {
           toast.success("OTP verification required", {
-            description: "A one-time password has been sent to your email. Please verify to continue.",
+            description:
+              "A one-time password has been sent to your email. Please verify to continue.",
             duration: 5000,
           })
-
-          router.push(next ? `/auth/otp?next=${encodeURIComponent(next)}` : "/auth/otp")
+          router.push(
+            next ? `/auth/otp?next=${encodeURIComponent(next)}` : "/auth/otp"
+          )
         }
       } else {
         toast.error("Login failed", {
@@ -91,87 +84,98 @@ export default function LoginPage() {
           <ThemeToggle />
         </div>
 
-        <Suspense fallback={
-          <div className="text-center">Loading authentication form...</div>
-        }>
+        {/* Login Card */}
+        <Card className="border-border shadow-lg">
+          <CardHeader className="space-y-1 text-center">
+            <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
+            <CardDescription>
+              Sign in to access your school management portal
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleLogin} className="space-y-4">
+              {/* Identifier */}
+              <div className="space-y-2">
+                <Label htmlFor="identifier">Username / Registration Number</Label>
+                <Input
+                  id="identifier"
+                  type="text"
+                  placeholder="Enter username or registration number"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  required
+                  className="bg-input"
+                />
+              </div>
 
-          {/* Login Card */}
-          <Card className="border-border shadow-lg">
-            <CardHeader className="space-y-1 text-center">
-              <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
-              <CardDescription>
-                Sign in to access your school management portal
-              </CardDescription>
-            </CardHeader>
-
-            <CardContent>
-              <form onSubmit={handleLogin} className="space-y-4">
-                {/* Identifier */}
-                <div className="space-y-2">
-                  <Label htmlFor="identifier">Username / Registration Number</Label>
+              {/* Password */}
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <div className="relative">
                   <Input
-                    id="identifier"
-                    type="text"
-                    placeholder="Enter username or registration number"
-                    value={identifier}
-                    onChange={(e) => setIdentifier(e.target.value)}
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter your password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                     required
-                    className="bg-input"
+                    className="bg-input pr-10"
                   />
-                </div>
-
-                {/* Password */}
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      placeholder="Enter your password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                      className="bg-input pr-10"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                      onClick={() => setShowPassword(!showPassword)}
-                    >
-                      {showPassword ? (
-                        <EyeOff className="h-4 w-4 text-muted-foreground" />
-                      ) : (
-                        <Eye className="h-4 w-4 text-muted-foreground" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Login Button */}
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? "Signing in..." : "Sign In"}
-                </Button>
-
-                {/* Forgot Password */}
-                <div className="text-center">
-                  <Link
-                    href="/auth/forgot-password"
-                    className="text-sm text-primary hover:underline"
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                    onClick={() => setShowPassword(!showPassword)}
                   >
-                    Forgot your password?
-                  </Link>
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <Eye className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </Button>
                 </div>
-              </form>
-            </CardContent>
-          </Card>
-        </Suspense>
+              </div>
+
+              {/* Login Button */}
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? "Signing in..." : "Sign In"}
+              </Button>
+
+              {/* Forgot Password */}
+              <div className="text-center">
+                <Link
+                  href="/auth/forgot-password"
+                  className="text-sm text-primary hover:underline"
+                >
+                  Forgot your password?
+                </Link>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+
         {/* Footer */}
         <div className="text-center text-sm text-muted-foreground">
           <p>© 2024 EduPortal. All rights reserved.</p>
         </div>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-background">
+          <div className="text-center py-10 text-muted-foreground">
+            Loading authentication form...
+          </div>
+        </div>
+      }
+    >
+      <LoginContent />
+    </Suspense>
   )
 }

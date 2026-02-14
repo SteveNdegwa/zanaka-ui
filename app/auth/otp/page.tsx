@@ -12,7 +12,7 @@ import { authRequests } from "@/lib/requests/auth"
 import { useUserProfileStore } from "@/store/store"
 import { useToast } from "@/src/use-toast"
 
-export default function OTPPage() {
+function OTPContent() {
   const [otp, setOtp] = useState(["", "", "", ""])
   const [isLoading, setIsLoading] = useState(false)
   const [resendLoading, setResendLoading] = useState(false)
@@ -36,12 +36,9 @@ export default function OTPPage() {
 
   const handleOtpChange = (index: number, value: string) => {
     if (value.length > 1) return // Prevent multiple characters
-
     const newOtp = [...otp]
     newOtp[index] = value
-
     setOtp(newOtp)
-
     // Auto-focus next input
     if (value && index < 3) {
       inputRefs.current[index + 1]?.focus()
@@ -59,7 +56,6 @@ export default function OTPPage() {
     const pastedData = e.clipboardData.getData("text").slice(0, 4)
     const newOtp = pastedData.split("").concat(Array(4).fill("")).slice(0, 4)
     setOtp(newOtp)
-
     const lastFilledIndex = newOtp.findIndex((digit) => !digit)
     const focusIndex = lastFilledIndex === -1 ? 3 : Math.max(0, lastFilledIndex - 1)
     inputRefs.current[focusIndex]?.focus()
@@ -67,27 +63,20 @@ export default function OTPPage() {
 
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault()
-
     if (otp.some((digit) => !digit)) return
-
     setIsLoading(true)
-
     try {
       const payload = { code: otp.join("") }
       const res = await authRequests.verifyLoginOTP(payload)
-
       if (res.success && res.data) {
         const userProfile = res.data.user_profile
         setUserProfileData(userProfile)
-
         toast.success("Login successful!", {
           description: "OTP verified successfully.",
           duration: 5000,
         })
-
         const next = searchParams.get("next") || "/"
         const needsPasswordReset = userProfile?.force_pass_reset
-
         if (needsPasswordReset) {
           router.push("/auth/update-password")
         } else {
@@ -109,7 +98,6 @@ export default function OTPPage() {
 
   const handleResendCode = async () => {
     setResendLoading(true)
-
     try {
       const res = await authRequests.resendLoginOTP()
       if (res.success) {
@@ -150,77 +138,72 @@ export default function OTPPage() {
           <ThemeToggle />
         </div>
 
-        <Suspense fallback={
-          <div className="text-center py-10">Loading verification form...</div>
-        }>
-
-          {/* OTP Verification Card */}
-          <Card className="border-border shadow-lg">
-            <CardHeader className="space-y-1 text-center">
-              <CardTitle className="text-2xl font-bold">Verify Your Identity</CardTitle>
-              <CardDescription>
-                Enter the 4-digit verification code sent to your registered contact method
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleVerifyOtp} className="space-y-6">
-                {/* OTP Input Fields */}
-                <div className="flex justify-center gap-3">
-                  {otp.map((digit, index) => (
-                    <input
-                      key={index}
-                      ref={(el) => { inputRefs.current[index] = el }}
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]"
-                      maxLength={1}
-                      value={digit}
-                      onChange={(e) => handleOtpChange(index, e.target.value)}
-                      onKeyDown={(e) => handleKeyDown(index, e)}
-                      onPaste={handlePaste}
-                      className="w-14 h-14 text-center text-2xl font-bold border-2 border-border rounded-lg bg-input focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
-                      disabled={isLoading}
-                    />
-                  ))}
-                </div>
-
-                {/* Verify Button */}
-                <Button type="submit" className="w-full" disabled={!isOtpComplete || isLoading}>
-                  {isLoading ? "Verifying..." : "Verify Code"}
-                </Button>
-
-                {/* Resend Code */}
-                <div className="text-center space-y-2">
-                  <p className="text-sm text-muted-foreground">{"Didn't receive the code?"}</p>
-                  {canResend ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={handleResendCode}
-                      disabled={resendLoading}
-                      className="text-primary hover:text-primary/80"
-                    >
-                      {resendLoading ? "Sending..." : "Resend Code"}
-                    </Button>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">Resend code in {resendTimer}s</p>
-                  )}
-                </div>
-              </form>
-
-              {/* Back to Login */}
-              <div className="mt-6 text-center">
-                <Link
-                  href="/auth"
-                  className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                  Back to Login
-                </Link>
+        {/* OTP Verification Card */}
+        <Card className="border-border shadow-lg">
+          <CardHeader className="space-y-1 text-center">
+            <CardTitle className="text-2xl font-bold">Verify Your Identity</CardTitle>
+            <CardDescription>
+              Enter the 4-digit verification code sent to your registered contact method
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleVerifyOtp} className="space-y-6">
+              {/* OTP Input Fields */}
+              <div className="flex justify-center gap-3">
+                {otp.map((digit, index) => (
+                  <input
+                    key={index}
+                    ref={(el) => { inputRefs.current[index] = el }}
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={1}
+                    value={digit}
+                    onChange={(e) => handleOtpChange(index, e.target.value)}
+                    onKeyDown={(e) => handleKeyDown(index, e)}
+                    onPaste={handlePaste}
+                    className="w-14 h-14 text-center text-2xl font-bold border-2 border-border rounded-lg bg-input focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
+                    disabled={isLoading}
+                  />
+                ))}
               </div>
-            </CardContent>
-          </Card>
-        </Suspense>
+
+              {/* Verify Button */}
+              <Button type="submit" className="w-full" disabled={!isOtpComplete || isLoading}>
+                {isLoading ? "Verifying..." : "Verify Code"}
+              </Button>
+
+              {/* Resend Code */}
+              <div className="text-center space-y-2">
+                <p className="text-sm text-muted-foreground">{"Didn't receive the code?"}</p>
+                {canResend ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={handleResendCode}
+                    disabled={resendLoading}
+                    className="text-primary hover:text-primary/80"
+                  >
+                    {resendLoading ? "Sending..." : "Resend Code"}
+                  </Button>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Resend code in {resendTimer}s</p>
+                )}
+              </div>
+            </form>
+
+            {/* Back to Login */}
+            <div className="mt-6 text-center">
+              <Link
+                href="/auth"
+                className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to Login
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Footer */}
         <div className="text-center text-sm text-muted-foreground">
@@ -228,5 +211,19 @@ export default function OTPPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function OTPPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center py-10 text-muted-foreground">
+          Loading verification form...
+        </div>
+      </div>
+    }>
+      <OTPContent />
+    </Suspense>
   )
 }
